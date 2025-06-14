@@ -5,45 +5,89 @@
   <title>Site</title>
   <style>
     html, body {
-      height: 100%;
       margin: 0;
+      padding: 0;
+      height: 100%;
       background-color: black;
       overflow: hidden;
     }
 
-    .aura {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      width: 400px;
-      height: 400px;
-      transform: translate(-50%, -50%);
-      background: radial-gradient(circle, rgba(255, 0, 150, 0.4) 0%, transparent 70%);
-      border-radius: 50%;
-      animation: auraAnimation 8s infinite;
-      filter: blur(60px);
+    .aura-container {
+      position: relative;
+      width: 100%;
+      height: 100%;
     }
 
-    @keyframes auraAnimation {
-      0% {
-        background: radial-gradient(circle, rgba(255, 0, 150, 0.4) 0%, transparent 70%);
-      }
-      25% {
-        background: radial-gradient(circle, rgba(0, 255, 255, 0.4) 0%, transparent 70%);
-      }
-      50% {
-        background: radial-gradient(circle, rgba(0, 255, 100, 0.4) 0%, transparent 70%);
-      }
-      75% {
-        background: radial-gradient(circle, rgba(255, 255, 0, 0.4) 0%, transparent 70%);
-      }
-      100% {
-        background: radial-gradient(circle, rgba(255, 0, 150, 0.4) 0%, transparent 70%);
-      }
+    .aura {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(80px);
+      opacity: 0.6;
+      animation: colorCycle 10s infinite ease-in-out;
+    }
+
+    /* Ortadaki büyük aura */
+    .aura.center {
+      top: 50%;
+      left: 50%;
+      width: 600px;
+      height: 600px;
+      transform: translate(-50%, -50%);
+      background: radial-gradient(circle, rgba(255, 0, 150, 0.4), transparent 70%);
+    }
+
+    /* Küçük hareketli auralar */
+    .aura.small1 {
+      width: 200px;
+      height: 200px;
+      background: radial-gradient(circle, rgba(0, 200, 255, 0.4), transparent 70%);
+      animation: float1 12s infinite ease-in-out alternate, colorCycle 14s infinite ease-in-out;
+    }
+
+    .aura.small2 {
+      width: 150px;
+      height: 150px;
+      background: radial-gradient(circle, rgba(0, 255, 150, 0.4), transparent 70%);
+      animation: float2 10s infinite ease-in-out alternate, colorCycle 12s infinite ease-in-out;
+    }
+
+    .aura.small3 {
+      width: 180px;
+      height: 180px;
+      background: radial-gradient(circle, rgba(255, 255, 0, 0.4), transparent 70%);
+      animation: float3 16s infinite ease-in-out alternate, colorCycle 16s infinite ease-in-out;
+    }
+
+    /* Renk geçişi animasyonu */
+    @keyframes colorCycle {
+      0% { filter: blur(80px); }
+      50% { filter: blur(100px); opacity: 0.8; }
+      100% { filter: blur(80px); }
+    }
+
+    /* Aura konum hareketleri */
+    @keyframes float1 {
+      0% { top: 20%; left: 10%; }
+      100% { top: 30%; left: 80%; }
+    }
+
+    @keyframes float2 {
+      0% { bottom: 15%; right: 10%; }
+      100% { bottom: 25%; right: 60%; }
+    }
+
+    @keyframes float3 {
+      0% { top: 10%; right: 20%; }
+      100% { top: 60%; right: 40%; }
     }
   </style>
 </head>
 <body>
-  <div class="aura"></div>
+  <div class="aura-container">
+    <div class="aura center"></div>
+    <div class="aura small1"></div>
+    <div class="aura small2"></div>
+    <div class="aura small3"></div>
+  </div>
 </body>
 </html>

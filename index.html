@@ -1,47 +1,212 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
-  <meta charset="UTF-8">
-  <title>enerji</title>
-  <style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EHeheehH</title>
+
+<style>
     body {
-      margin: 0;
-      height: 100vh;
-      background-color: black;
-      background-image: radial-gradient(gray 1px, transparent 1px);
-      background-size: 20px 20px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+        margin: 0;
+        background: #000;
+        overflow: hidden;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
     }
 
-    .video-container {
-      width: 50vw;
-      height: 50vh;
-      background-color: #222;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: white;
-      font-size: 2vw;
-      border-radius: 10px;
-      box-shadow: 0 0 20px rgba(255, 255, 255, 0.3);
+    #canvas-wrapper {
+        position: relative;
+        background: #000;
+        box-shadow: 0 0 80px rgba(255,215,0,0.15);
     }
 
-    @media (max-width: 600px) {
-      .video-container {
-        width: 80vw;
-        height: 45vh;
-        font-size: 4vw;
-      }
+    #canvas-container {
+        width: 100%;
+        height: 100%;
     }
-  </style>
+</style>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
 </head>
+
 <body>
-  <div class="video-container">
-    <iframe width="1058" height="595" src="https://www.youtube.com/embed/KPhqU--Mq1A?list=RDKPhqU--Mq1A" title="Rocky Balboa - Theme Song (HD)" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
-  </div>
+
+<div id="canvas-wrapper">
+    <div id="canvas-container"></div>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+
+/* ---------------- CONFIG ---------------- */
+const CONFIG = {
+    treeHeight: 75,
+    maxRadius: 30,
+    camDistance: 110,
+    gold: 500,
+    silver: 500,
+    gem: 300,
+    emerald: 300
+};
+
+let scene, camera, renderer, composer;
+let mainGroup = new THREE.Group();
+let time = 0;
+
+const dummy = new THREE.Object3D();
+const data = { gold: [], silver: [], gem: [], emerald: [], star: null };
+
+/* ---------------- INIT ---------------- */
+init();
+animate();
+
+function init() {
+    const wrapper = document.getElementById('canvas-wrapper');
+    const container = document.getElementById('canvas-container');
+
+    resizeWrapper();
+
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x050505);
+    scene.fog = new THREE.FogExp2(0x050505, 0.002);
+
+    camera = new THREE.PerspectiveCamera(50, wrapper.clientWidth / wrapper.clientHeight, 0.1, 1000);
+    camera.position.z = CONFIG.camDistance;
+
+    renderer = new THREE.WebGLRenderer({ powerPreference: "high-performance" });
+    renderer.setSize(wrapper.clientWidth, wrapper.clientHeight);
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.1;
+    container.appendChild(renderer.domElement);
+
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+
+    scene.add(new THREE.AmbientLight(0xffffff, 0.25));
+
+    const spot = new THREE.SpotLight(0xffddaa, 100);
+    spot.position.set(30, 80, 50);
+    scene.add(spot);
+
+    setupMeshes();
+    scene.add(mainGroup);
+
+    composer = new EffectComposer(renderer);
+    composer.addPass(new RenderPass(scene, camera));
+    composer.addPass(new UnrealBloomPass(
+        new THREE.Vector2(wrapper.clientWidth, wrapper.clientHeight),
+        0.7, 0.6, 0.35
+    ));
+
+    window.addEventListener('resize', onResize);
+}
+
+/* ---------------- TREE ---------------- */
+function setupMeshes() {
+    const goldMat = new THREE.MeshPhysicalMaterial({ color: 0xffaa00, metalness: 1, roughness: 0.15 });
+    const silverMat = new THREE.MeshPhysicalMaterial({ color: 0xffffff, metalness: 0.9, roughness: 0.2 });
+    const gemMat = new THREE.MeshPhysicalMaterial({ color: 0xff0044, transmission: 0.6, roughness: 0 });
+    const emeraldMat = new THREE.MeshPhysicalMaterial({ color: 0x00aa55, transmission: 0.5 });
+
+    createInstanced(new THREE.SphereGeometry(0.7, 12, 12), goldMat, CONFIG.gold, data.gold);
+    createInstanced(new THREE.BoxGeometry(0.8, 0.8, 0.8), silverMat, CONFIG.silver, data.silver);
+    createInstanced(new THREE.OctahedronGeometry(0.8), gemMat, CONFIG.gem, data.gem);
+    createInstanced(new THREE.ConeGeometry(0.5, 1.2, 6), emeraldMat, CONFIG.emerald, data.emerald);
+
+    const star = new THREE.Mesh(
+        new THREE.OctahedronGeometry(3),
+        new THREE.MeshPhysicalMaterial({ emissive: 0xffffee, emissiveIntensity: 2 })
+    );
+    star.position.y = CONFIG.treeHeight / 2 + 3;
+    data.star = star;
+    mainGroup.add(star);
+}
+
+function createInstanced(geo, mat, count, store) {
+    const mesh = new THREE.InstancedMesh(geo, mat, count);
+    mainGroup.add(mesh);
+
+    for (let i = 0; i < count; i++) {
+        const h = Math.random() * CONFIG.treeHeight - CONFIG.treeHeight / 2;
+        const n = (h + CONFIG.treeHeight / 2) / CONFIG.treeHeight;
+        const r = Math.sqrt(Math.random()) * CONFIG.maxRadius * (1 - n);
+        const t = Math.random() * Math.PI * 2;
+
+        store.push({
+            pos: new THREE.Vector3(r * Math.cos(t), h, r * Math.sin(t)),
+            rot: new THREE.Euler(Math.random(), Math.random(), 0),
+            speed: Math.random() * 0.02
+        });
+    }
+    mesh.userData.store = store;
+}
+
+/* ---------------- ANIMATE ---------------- */
+function animate() {
+    requestAnimationFrame(animate);
+    time += 0.01;
+
+    mainGroup.rotation.y += 0.004;
+
+    mainGroup.children.forEach(obj => {
+        if (!obj.isInstancedMesh) return;
+        const arr = obj.userData.store;
+        for (let i = 0; i < arr.length; i++) {
+            const p = arr[i];
+            p.rot.y += p.speed;
+            dummy.position.copy(p.pos);
+            dummy.rotation.copy(p.rot);
+            dummy.scale.setScalar(0.8);
+            dummy.updateMatrix();
+            obj.setMatrixAt(i, dummy.matrix);
+        }
+        obj.instanceMatrix.needsUpdate = true;
+    });
+
+    if (data.star) data.star.rotation.y += 0.02;
+
+    composer.render();
+}
+
+/* ---------------- RESIZE ---------------- */
+function resizeWrapper() {
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    const aspect = 4 / 3;
+
+    const wrapper = document.getElementById('canvas-wrapper');
+    if (w / h > aspect) {
+        wrapper.style.height = h + 'px';
+        wrapper.style.width = h * aspect + 'px';
+    } else {
+        wrapper.style.width = w + 'px';
+        wrapper.style.height = w / aspect + 'px';
+    }
+}
+
+function onResize() {
+    resizeWrapper();
+    const wrapper = document.getElementById('canvas-wrapper');
+    camera.aspect = wrapper.clientWidth / wrapper.clientHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(wrapper.clientWidth, wrapper.clientHeight);
+    composer.setSize(wrapper.clientWidth, wrapper.clientHeight);
+}
+</script>
+
 </body>
 </html>
-
-

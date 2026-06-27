@@ -50,13 +50,13 @@
   .fund-name { font-size: 0.78rem; color: #666; margin: 6px 0 16px; line-height: 1.4; }
   .mini-chart { width: 100%; height: 50px; margin: 8px 0; }
   .play-btn {
-    position: absolute; top: 16px; right: 16px;
-    background: rgba(0,255,200,0.1); border: 1px solid rgba(0,255,200,0.2);
-    border-radius: 50%; width: 32px; height: 32px;
+    position: absolute; top: 14px; right: 14px;
+    background: rgba(0,255,200,0.08); border: 1px solid rgba(0,255,200,0.25);
+    border-radius: 8px; width: 28px; height: 28px;
     display: flex; align-items: center; justify-content: center;
-    font-size: 14px; color: #00ffcc; opacity: 0; transition: opacity 0.2s;
+    font-size: 15px; color: #00ffcc88; opacity: 1; transition: all 0.2s;
   }
-  .card:hover .play-btn { opacity: 1; }
+  .card:hover .play-btn { background: rgba(0,255,200,0.18); color: #00ffcc; border-color: rgba(0,255,200,0.6); }
   .loading { text-align: center; color: #333; padding: 80px; font-size: 0.9rem; letter-spacing: 2px; }
 </style>
 </head>
@@ -88,7 +88,7 @@ function renderGrid(data) {
     const card = document.createElement('div');
     card.className = 'card';
     card.innerHTML = `
-      <div class="play-btn">▶</div>
+      <div class="play-btn">→</div>
       <div class="fund-code" style="color:${codeColor}">${code}</div>
       <div class="fund-name">${fund.name}</div>
       <svg class="mini-chart" viewBox="0 0 240 48" preserveAspectRatio="none">
@@ -103,6 +103,7 @@ function renderGrid(data) {
       </svg>
     `;
     card.addEventListener('click', () => { window.location.href = `game.html?fund=${code}`; });
+    card.addEventListener('touchend', (e) => { e.preventDefault(); window.location.href = `game.html?fund=${code}`; });
     grid.appendChild(card);
   });
 }

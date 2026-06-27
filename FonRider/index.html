@@ -102,8 +102,14 @@ function renderGrid(data) {
         <polyline points="${pts}" fill="none" stroke="${lineColor}" stroke-width="1.5"/>
       </svg>
     `;
+    let touchStartX, touchStartY;
+    card.addEventListener('touchstart', (e) => { touchStartX = e.touches[0].clientX; touchStartY = e.touches[0].clientY; }, { passive: true });
+    card.addEventListener('touchend', (e) => {
+      const dx = e.changedTouches[0].clientX - touchStartX;
+      const dy = e.changedTouches[0].clientY - touchStartY;
+      if (Math.sqrt(dx*dx + dy*dy) < 10) { e.preventDefault(); window.location.href = `game.html?fund=${code}`; }
+    });
     card.addEventListener('click', () => { window.location.href = `game.html?fund=${code}`; });
-    card.addEventListener('touchend', (e) => { e.preventDefault(); window.location.href = `game.html?fund=${code}`; });
     grid.appendChild(card);
   });
 }

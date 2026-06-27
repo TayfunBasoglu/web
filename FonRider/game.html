@@ -54,8 +54,11 @@
   @media (pointer: coarse) {
     #mobile-controls { display:block; }
     #hud-right { display:none; }
-    #progress { bottom:200px; }
-    #nitro-bar { bottom:200px;top:auto;transform:none; }
+    #progress { bottom:180px; }
+    #nitro-bar { bottom:180px;top:auto;transform:none; }
+    .mob-btn { width:52px;height:52px;font-size:1.15rem; }
+    #left-pad { gap:9px;bottom:18px;left:14px; }
+    #right-pad { gap:9px;bottom:18px;right:14px; }
   }
 </style>
 </head>
@@ -108,9 +111,10 @@ function resize() { canvas.width = window.innerWidth; canvas.height = window.inn
 resize();
 window.addEventListener('resize', resize);
 
-const WR  = 17;
-const WB  = 26;
-const WDY = 7;
+const isMobile = window.matchMedia('(pointer: coarse)').matches;
+const WR  = isMobile ? 14 : 17;
+const WB  = isMobile ? 21 : 26;
+const WDY = isMobile ?  6 :  7;
 const SPACING = 200;
 
 let terrainPts = [], fundData = null;
@@ -347,8 +351,9 @@ function restartGame() {
 window.restartGame = restartGame;
 
 function updateCamera() {
-  camX += (B.x - canvas.width  * 0.30 - camX) * 0.09;
-  camY += (B.y - canvas.height * 0.68 - camY) * 0.09;
+  const camOffsetX = isMobile ? 0.20 : 0.30;
+  camX += (B.x - canvas.width  * camOffsetX - camX) * 0.09;
+  camY += (B.y - canvas.height * 0.68        - camY) * 0.09;
 }
 
 function cl2s(lx, ly) {

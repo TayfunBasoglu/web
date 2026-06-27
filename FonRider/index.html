@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>FonRider</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #000; color: #fff; font-family: 'Segoe UI', monospace; min-height: 100vh; overflow-x: hidden; }
+  .hero { text-align: center; padding: 48px 20px 32px; }
+  .hero h1 { font-size: 3.2rem; font-weight: 900; letter-spacing: -1px; color: #00ffcc; }
+  .hero p { color: #555; margin-top: 10px; font-size: 0.9rem; letter-spacing: 2px; text-transform: uppercase; }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+    padding: 0 24px 48px;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+  @media (max-width: 640px) {
+    .grid { grid-template-columns: repeat(2, 1fr); gap: 10px; padding: 0 12px 32px; }
+    .fund-code { font-size: 1.2rem !important; }
+    .fund-name { font-size: 0.68rem !important; margin: 4px 0 10px !important; }
+  }
+  .card {
+    background: #0a0a0a;
+    border: 1px solid #1a1a1a;
+    border-radius: 12px;
+    padding: 20px;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+  .card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(0,255,200,0.04), transparent);
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  .card:hover { border-color: #00ffcc44; transform: translateY(-2px); box-shadow: 0 8px 32px rgba(0,255,200,0.08); }
+  .card:hover::before { opacity: 1; }
+  .card:active { transform: translateY(0); }
+  .fund-code { font-size: 1.6rem; font-weight: 900; font-family: monospace; letter-spacing: 1px; }
+  .fund-name { font-size: 0.78rem; color: #666; margin: 6px 0 16px; line-height: 1.4; }
+  .mini-chart { width: 100%; height: 50px; margin: 8px 0; }
+  .play-btn {
+    position: absolute; top: 16px; right: 16px;
+    background: rgba(0,255,200,0.1); border: 1px solid rgba(0,255,200,0.2);
+    border-radius: 50%; width: 32px; height: 32px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; color: #00ffcc; opacity: 0; transition: opacity 0.2s;
+  }
+  .card:hover .play-btn { opacity: 1; }
+  .loading { text-align: center; color: #333; padding: 80px; font-size: 0.9rem; letter-spacing: 2px; }
+</style>
+</head>
+<body>
+<div class="hero">
+  <h1>FonRider</h1>
+  <p id="date-range">—</p>
+</div>
+<div class="grid" id="grid">
+  <div class="loading">YÜKLENİYOR...</div>
+</div>
+<script src="data.js"></script>
+<script>
+function sparklinePath(prices, w, h) {
+  const vals = prices.map(p => p[1]);
+  const min = Math.min(...vals), max = Math.max(...vals), range = max - min || 1;
+  return vals.map((v, i) => `${(i / (vals.length - 1)) * w},${h - ((v - min) / range) * h}`).join(' ');
+}
+
+function renderGrid(data) {
+  const grid = document.getElementById('grid');
+  grid.innerHTML = '';
+  Object.entries(data).sort((a, b) => a[0].localeCompare(b[0])).forEach(([code, fund]) => {
+    const prices = fund.prices;
+    const isPos = prices[prices.length - 1][1] >= prices[0][1];
+    const lineColor = isPos ? '#00cc66' : '#ff4444';
+    const codeColor = isPos ? '#00ffcc' : '#ff5555';
+    const pts = sparklinePath(prices.slice(-60), 240, 48);
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = `
+      <div class="play-btn">▶</div>
+      <div class="fund-code" style="color:${codeColor}">${code}</div>
+      <div class="fund-name">${fund.name}</div>
+      <svg class="mini-chart" viewBox="0 0 240 48" preserveAspectRatio="none">
+        <defs>
+          <linearGradient id="g${code}" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="${lineColor}" stop-opacity="0.3"/>
+            <stop offset="100%" stop-color="${lineColor}" stop-opacity="0"/>
+          </linearGradient>
+        </defs>
+        <polygon points="${pts} 240,48 0,48" fill="url(#g${code})"/>
+        <polyline points="${pts}" fill="none" stroke="${lineColor}" stroke-width="1.5"/>
+      </svg>
+    `;
+    card.addEventListener('click', () => { window.location.href = `game.html?fund=${code}`; });
+    grid.appendChild(card);
+  });
+}
+
+(function () {
+  let firstDate = '9999', lastDate = '0000';
+  Object.values(FONDATA).forEach(f => {
+    if (f.prices[0][0] < firstDate) firstDate = f.prices[0][0];
+    const ld = f.prices[f.prices.length - 1][0];
+    if (ld > lastDate) lastDate = ld;
+  });
+  document.getElementById('date-range').textContent = firstDate + ' — ' + lastDate;
+  renderGrid(FONDATA);
+})();
+</script>
+</body>
+</html>

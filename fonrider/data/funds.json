@@ -1,0 +1,205 @@
+{
+  "updated": "27.06.2026 14:32",
+  "funds": [
+    {
+      "code": "AES",
+      "name": "AK PORTFÖY PETROL YABANCI BYF FON SEPETİ FONU",
+      "short": "Petrol BYF",
+      "return1y": null,
+      "volatility": null,
+      "difficulty": "Medium",
+      "lastPrice": null,
+      "lastDate": null
+    },
+    {
+      "code": "AFA",
+      "name": "AK PORTFÖY AMERİKA YABANCI HİSSE SENEDİ FONU",
+      "short": "Amerika Hisse",
+      "return1y": null,
+      "volatility": null,
+      "difficulty": "Medium",
+      "lastPrice": null,
+      "lastDate": null
+    },
+    {
+      "code": "AFS",
+      "name": "AK PORTFÖY SAĞLIK SEKTÖRÜ YABANCI HİSSE SENEDİ FONU",
+      "short": "Sağlık Hisse",
+      "return1y": null,
+      "volatility": null,
+      "difficulty": "Medium",
+      "lastPrice": null,
+      "lastDate": null
+    },
+    {
+      "code": "AFT",
+      "name": "AK PORTFÖY YENİ TEKNOLOJİLER YABANCI HİSSE SENEDİ FONU",
+      "short": "Teknoloji Hisse",
+      "return1y": null,
+      "volatility": null,
+      "difficulty": "Medium",
+      "lastPrice": null,
+      "lastDate": null
+    },
+    {
+      "code": "AFV",
+      "name": "AK PORTFÖY AVRUPA YABANCI HİSSE SENEDİ FONU",
+      "short": "Avrupa Hisse",
+      "return1y": null,
+      "volatility": null,
+      "difficulty": "Medium",
+      "lastPrice": null,
+      "lastDate": null
+    },
+    {
+      "code": "AOY",
+      "name": "AK PORTFÖY ALTERNATİF ENERJİ YABANCI HİSSE SENEDİ FONU",
+      "short": "Alternatif Enerji",
+      "return1y": null,
+      "volatility": null,
+      "difficulty": "Medium",
+      "lastPrice": null,
+      "lastDate": null
+    },
+    {
+      "code": "ARE",
+      "name": "İSTANBUL PORTFÖY YABANCI HİSSE SENEDİ FONU",
+      "short": "İstanbul Yabancı",
+      "return1y": null,
+      "volatility": null,
+      "difficulty": "Medium",
+      "lastPrice": null,
+      "lastDate": null
+    },
+    {
+      "code": "GBC",
+      "name": "AZİMUT PORTFÖY YABANCI HİSSE SENEDİ FONU",
+      "short": "Azimut Yabancı",
+      "return1y": null,
+      "volatility": null,
+      "difficulty": "Medium",
+      "lastPrice": null,
+      "lastDate": null
+    },
+    {
+      "code": "GBG",
+      "name": "INVEO PORTFÖY G-20 ÜLKELERİ YABANCI HİSSE SENEDİ FONU",
+      "short": "G-20 Hisse",
+      "return1y": null,
+      "volatility": null,
+      "difficulty": "Medium",
+      "lastPrice": null,
+      "lastDate": null
+    },
+    {
+      "code": "GUH",
+      "name": "GARANTİ PORTFÖY YABANCI TEKNOLOJİ HİSSE SENEDİ FONU",
+      "short": "Garanti Teknoloji",
+      "return1y": null,
+      "volatility": null,
+      "difficulty": "Medium",
+      "lastPrice": null,
+      "lastDate": null
+    },
+    {
+      "code": "HOY",
+      "name": "HSBC PORTFÖY YABANCI BYF FON SEPETI",
+      "short": "HSBC BYF Sepet",
+      "return1y": null,
+      "volatility": null,
+      "difficulty": "Medium",
+      "lastPrice": null,
+      "lastDate": null
+    },
+    {
+      "code": "KJK",
+      "name": "KUVEYT TÜRK PORTFÖY YABANCI KATILIM SERBEST ÖZEL FON",
+      "short": "Kuveyt Türk Katılım",
+      "return1y": null,
+      "volatility": null,
+      "difficulty": "Medium",
+      "lastPrice": null,
+      "lastDate": null
+    },
+    {
+      "code": "TDG",
+      "name": "İŞ PORTFÖY YABANCI BORÇLANMA ARAÇLARI FONU",
+      "short": "İş Borçlanma",
+      "return1y": null,
+      "volatility": null,
+      "difficulty": "Medium",
+      "lastPrice": null,
+      "lastDate": null
+    },
+    {
+      "code": "TFF",
+      "name": "TEB PORTFÖY AMERİKA TEKNOLOJİ YABANCI BYF FON SEPETİ FONU",
+      "short": "TEB Amerika Teknoloji",
+      "return1y": null,
+      "volatility": null,
+      "difficulty": "Medium",
+      "lastPrice": null,
+      "lastDate": null
+    },
+    {
+      "code": "TGE",
+      "name": "İŞ PORTFÖY EMTİA YABANCI BYF FON SEPETİ FONU",
+      "short": "İş Emtia BYF",
+      "return1y": null,
+      "volatility": null,
+      "difficulty": "Medium",
+      "lastPrice": null,
+      "lastDate": null
+    },
+    {
+      "code": "TLE",
+      "name": "AURA PORTFÖY YABANCI BORÇLANMA ARAÇLARI FONU",
+      "short": "Aura Borçlanma",
+      "return1y": null,
+      "volatility": null,
+      "difficulty": "Medium",
+      "lastPrice": null,
+      "lastDate": null
+    },
+    {
+      "code": "TMG",
+      "name": "İŞ PORTFÖY YABANCI HİSSE SENEDİ FONU",
+      "short": "İş Yabancı Hisse",
+      "return1y": null,
+      "volatility": null,
+      "difficulty": "Medium",
+      "lastPrice": null,
+      "lastDate": null
+    },
+    {
+      "code": "YAY",
+      "name": "YAPI KREDİ PORTFÖY YABANCI TEKNOLOJİ SEKTÖRÜ HİSSE SENEDİ FONU",
+      "short": "YKB Teknoloji",
+      "return1y": null,
+      "volatility": null,
+      "difficulty": "Medium",
+      "lastPrice": null,
+      "lastDate": null
+    },
+    {
+      "code": "YTD",
+      "name": "YAPI KREDİ PORTFÖY YABANCI FON SEPETİ FONU",
+      "short": "YKB Fon Sepeti",
+      "return1y": null,
+      "volatility": null,
+      "difficulty": "Medium",
+      "lastPrice": null,
+      "lastDate": null
+    },
+    {
+      "code": "ZSF",
+      "name": "ZİRAAT PORTFÖY S&P/OIC COMCEC 50 SHARİAH YABANCI HİSSE SENEDİ FONU",
+      "short": "Ziraat Shariah",
+      "return1y": null,
+      "volatility": null,
+      "difficulty": "Medium",
+      "lastPrice": null,
+      "lastDate": null
+    }
+  ]
+}

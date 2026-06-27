@@ -121,6 +121,40 @@ const SPACING = 200;
 
 let terrainPts = [], fundData = null;
 
+// Sadece derin/dar V vadilerinin dibine yatay boşluk ekler.
+// Diğer tüm köşeler ve eğimler aynen kalır.
+function smoothSharpValleys() {
+  const out = [terrainPts[0]];
+  for (let i = 1; i < terrainPts.length - 1; i++) {
+    const A = terrainPts[i - 1], B = terrainPts[i], C = terrainPts[i + 1];
+    const abx = B.x - A.x, aby = B.y - A.y;
+    const bcx = C.x - B.x, bcy = C.y - B.y;
+    const abLen = Math.hypot(abx, aby) || 1;
+    const bcLen = Math.hypot(bcx, bcy) || 1;
+    const dot = (abx / abLen) * (bcx / bcLen) + (aby / abLen) * (bcy / bcLen);
+    const angle = Math.acos(Math.max(-1, Math.min(1, dot)));
+    const isValley = B.y > A.y - 10 && B.y > C.y - 10;
+    const isPeak   = B.y < A.y + 10 && B.y < C.y + 10;
+
+    if ((angle > 1.1 && isValley) || (angle > 0.95 && isPeak)) {
+      // Vadi: geniş boşluk (takılmayı önler); tepe: dar boşluk (içinden geçmeyi önler)
+      const PAD = isValley ? (angle > 1.6 ? 80 : angle > 1.3 ? 55 : 35) : 28;
+      const t = Math.min(0.45, PAD / abLen);
+      const u = Math.min(0.45, PAD / bcLen);
+      const px1 = B.x - abx * t, py1 = B.y - aby * t;
+      const px2 = B.x + bcx * u, py2 = B.y + bcy * u;
+      const mx  = (px1 + px2) / 2,  my  = (py1 + py2) / 2;
+      out.push({ x: px1, y: py1, price: B.price, date: null });
+      out.push({ x: mx,  y: my,  price: B.price, date: B.date }); // etiket düzeltme bölgesinin ortasında
+      out.push({ x: px2, y: py2, price: B.price, date: null });
+    } else {
+      out.push(B);
+    }
+  }
+  out.push(terrainPts[terrainPts.length - 1]);
+  terrainPts = out;
+}
+
 function buildTerrain(prices) {
   terrainPts = [];
   const H = canvas.height, TOP = H * 0.08, BOT = H * 0.96;
@@ -218,10 +252,11 @@ function update() {
   }
   const onGnd = rGnd || fGnd;
 
-  if (onGnd) {
-    const cT = terrainAt(B.x);
-    B.vx += (-cT.ny) * B.eng;
-    B.vy +=  (cT.nx) * B.eng;
+  if (rGnd || fGnd) {
+    // Çift çeker + dik yamaç kurtarma
+    const slopeBoost = (T) => B.eng > 0 ? Math.max(1, 1 + (Math.abs(T.nx) - 0.40) * 1.6) : 1;
+    if (rGnd) { const rT = terrainAt(wPos(-1).x); const b = slopeBoost(rT); B.vx += (-rT.ny)*B.eng*0.65*b; B.vy += (rT.nx)*B.eng*0.65*b; }
+    if (fGnd) { const fT = terrainAt(wPos( 1).x); const b = slopeBoost(fT); B.vx += (-fT.ny)*B.eng*0.55*b; B.vy += (fT.nx)*B.eng*0.55*b; }
   } else {
     B.vx += B.eng * 0.01;
     B.vx *= 0.978;
@@ -229,6 +264,14 @@ function update() {
 
   B.vy += onGnd ? 0.32 : 0.136;
   B.vx *= 0.993; B.vy *= 0.999;
+  // Zemindeyken hız tavanı — yamaç sonrası fırlamayı önler
+  if (rGnd || fGnd) {
+    const spd = Math.hypot(B.vx, B.vy);
+    if (spd > 11) { B.vx = B.vx/spd*11; B.vy = B.vy/spd*11; }
+    if (B.vy < -7.5 && B.eng < 0.1) B.vy = -7.5; // aktif tırmanışta vy tavanı devre dışı
+    // Yokuş aşağı fazla hızlanmayı önle — motor kapalıysa ekstra fren
+    if (B.eng < 0.05 && B.vx > 5) B.vx *= 0.968;
+  }
 
   const SUBS = 5;
   for (let s = 0; s < SUBS; s++) {
@@ -245,6 +288,11 @@ function update() {
       B.vx -= T.ny * vt * 0.006; B.vy += T.nx * vt * 0.006;
     };
     resolve(rPen, rT); resolve(fPen, fT);
+    // Gövde merkezi çarpışması — arazi bisikletin içinden geçemesin
+    const bodyY = B.y + WDY;               // gövde alt referans noktası
+    const bT = terrainAt(B.x);
+    const bPen = bodyY - bT.y;
+    if (bPen > 0) { B.y -= bPen; B.vy = Math.min(B.vy, 0); }
     if (B.vy < -22) B.vy = -22;
   }
 
@@ -258,19 +306,21 @@ function update() {
     if (rG2 && fG2) {
       const rwy = terrainAt(rw.x).y - WR, fwy = terrainAt(fw.x).y - WR;
       const tAngle = Math.atan2(fwy - rwy, fw.x - rw.x);
+      // ≥65° eğimde sağ/sol lean etkisini %30 azalt
+      const leanScale = Math.abs(tAngle) >= Math.PI * 65 / 180 ? 0.70 : 1.0;
       if (leanInput === 0) {
         let da = tAngle - B.angle;
         while (da >  Math.PI) da -= 2 * Math.PI;
         while (da < -Math.PI) da += 2 * Math.PI;
         B.angle += da * 0.35; B.avel = 0;
       } else {
-        const target = tAngle + leanInput * 0.28;
+        const target = tAngle + leanInput * 0.28 * leanScale;
         let da = target - B.angle;
         while (da >  Math.PI) da -= 2 * Math.PI;
         while (da < -Math.PI) da += 2 * Math.PI;
-        B.angle += da * 0.048;
+        B.angle += da * 0.048 * leanScale;
         const dev = B.angle - tAngle;
-        B.angle = tAngle + Math.max(-0.28, Math.min(0.28, dev));
+        B.angle = tAngle + Math.max(-0.28 * leanScale, Math.min(0.28 * leanScale, dev));
         B.avel = 0;
       }
       B.vx *= 0.988;
@@ -282,6 +332,8 @@ function update() {
         while (da >  Math.PI) da -= 2 * Math.PI;
         while (da < -Math.PI) da += 2 * Math.PI;
         B.angle += da * 0.25; B.avel = 0;
+        // Sadece ön teker yerdeyse arka tekeri aşağı çek (dikey kilitlenmeyi önler)
+        if (fG2 && !rG2 && Math.abs(tA2) > Math.PI * 0.22) B.angle += 0.014;
       } else {
         B.avel += leanInput * 0.009; B.avel *= 0.4;
       }
@@ -314,23 +366,19 @@ function update() {
   B.rSpin += B.vx / WR; B.fSpin += B.vx / WR;
 }
 
+function respawn() {
+  const spawnX = Math.max(terrainPts[0].x + 70, B.x - 300);
+  Object.assign(B, { x: spawnX, y: terrainAt(spawnX).y - WR - WDY - 8, vx: 0, vy: 0, angle: 0, avel: 0, eng: 0 });
+  flipTimer = 0; flipAccum = 0;
+}
+
 function checkCrash() {
   const a = ((B.angle % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
   if (a > Math.PI * 0.52 && a < Math.PI * 1.48) flipTimer++; else flipTimer = 0;
   const ca = Math.cos(B.angle), sa = Math.sin(B.angle);
   const waistX = B.x + ca * (-4) - sa * (-21);
   const waistY = B.y + sa * (-4) + ca * (-21);
-  if (waistY > terrainAt(waistX).y) {
-    const spawnX = B.x - 250;
-    Object.assign(B, { x: spawnX, y: terrainAt(spawnX).y - WR - WDY - 8, vx: 0, vy: 0, angle: 0, avel: 0, eng: 0 });
-    return;
-  }
-  if (flipTimer > 110 || B.y > canvas.height + 300) triggerCrash();
-}
-
-function triggerCrash() {
-  crashed = true;
-  document.getElementById('crash-msg').style.display = 'flex';
+  if (waistY > terrainAt(waistX).y + 22 || flipTimer > 110 || B.y > canvas.height + 300) respawn();
 }
 
 function triggerWin() {
@@ -426,11 +474,7 @@ function drawTerrain() {
   gr.addColorStop(1, 'rgba(0,45,38,0.22)');
   ctx.fillStyle = gr; ctx.fill();
 
-  ctx.beginPath();
-  vis.forEach((p, i) => i === 0 ? ctx.moveTo(p.x - camX, p.y - camY) : ctx.lineTo(p.x - camX, p.y - camY));
-  ctx.strokeStyle = '#00ffcc'; ctx.lineWidth = 2.5;
-  ctx.shadowBlur = 14; ctx.shadowColor = '#00ffcc'; ctx.stroke(); ctx.shadowBlur = 0;
-
+  // Önce etiketler (nokta, fiyat, tarih) — çizgi bunların üstüne çizilecek
   ctx.textAlign = 'center';
   const fmt = v => v.toFixed(6);
   for (let i = 0; i < terrainPts.length; i++) {
@@ -457,12 +501,19 @@ function drawTerrain() {
 
     ctx.font = '11px monospace';
     const dw = ctx.measureText(p.date).width;
-    ctx.fillStyle = 'rgba(0,8,10,0.82)';
-    ctx.fillRect(sx - dw / 2 - 4, sy + 8, dw + 8, 15);
-    ctx.fillStyle = 'rgba(255,255,255,.80)';
-    ctx.fillText(p.date, sx, sy + 20);
+    // Tarih etiketi çizginin altına, arka plan kutusu olmadan (çizgi hep görünür)
+    ctx.shadowBlur = 4; ctx.shadowColor = '#000';
+    ctx.fillStyle = 'rgba(255,255,255,.85)';
+    ctx.fillText(p.date, sx, sy + 22);
+    ctx.shadowBlur = 0;
   }
   ctx.textAlign = 'left';
+
+  // Çizgi en son — etiket kutularının üstüne çizilir, hep net görünür
+  ctx.beginPath();
+  vis.forEach((p, i) => i === 0 ? ctx.moveTo(p.x - camX, p.y - camY) : ctx.lineTo(p.x - camX, p.y - camY));
+  ctx.strokeStyle = '#00ffcc'; ctx.lineWidth = 2.5;
+  ctx.shadowBlur = 14; ctx.shadowColor = '#00ffcc'; ctx.stroke(); ctx.shadowBlur = 0;
 
   const startPt = terrainPts[0];
   if (startPt.x >= vl && startPt.x <= vr) drawBarrier(startPt.x + 50, startPt.y, 'BAŞLANGIÇ', startPt.date);
@@ -617,6 +668,7 @@ function init() {
   document.getElementById('fund-name').textContent = fundData.name;
   document.title = 'FonRider - ' + fundCode;
   buildTerrain(fundData.prices.slice(-200));
+  smoothSharpValleys();
   const spx = terrainPts[0].x + 70;
   const spy = terrainAt(spx).y;
   Object.assign(B, { x: spx, y: spy - WR - WDY - 8, vx: 0, vy: 0, angle: 0, avel: 0, eng: 0, rSpin: 0, fSpin: 0 });

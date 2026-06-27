@@ -7,601 +7,116 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>FonRider</title>
 <style>
-  * { margin:0; padding:0; box-sizing:border-box; }
-  body { background:#000; overflow:hidden; font-family:monospace; }
-  canvas { display:block; }
-  #hud-left { position:fixed;top:0;left:0;padding:12px 20px;pointer-events:none;z-index:10; }
-  #back-btn { display:block;color:#bbb;text-decoration:none;font-size:.72rem;letter-spacing:1px;
-              pointer-events:all;padding:4px 12px;border:1px solid #555;border-radius:4px;
-              background:rgba(0,0,0,.75);cursor:pointer;margin-bottom:10px;width:fit-content; }
-  #back-btn:hover { color:#00ffcc;border-color:#00ffcc; }
-  #fund-code { font-size:1.5rem;font-weight:900;color:#00ffcc;letter-spacing:1px; }
-  #fund-name { font-size:.72rem;color:#aaa;margin-top:3px;max-width:360px;line-height:1.4; }
-  #hud-right { position:fixed;top:12px;right:20px;text-align:right;
-               display:flex;flex-direction:column;gap:6px;pointer-events:none;z-index:10;
-               background:rgba(0,0,0,.55);border:1px solid #1e1e1e;border-radius:6px;padding:8px 12px; }
-  .ctrl-row { display:flex;align-items:center;justify-content:flex-end;gap:8px;font-size:.78rem;color:#aaa; }
-  .ctrl-key { background:#1a1a1a;border:1px solid #333;border-bottom:2px solid #333;border-radius:4px;
-              padding:2px 7px;color:#00ffcc;font-family:monospace;font-size:.72rem; }
-  #nitro-bar { position:fixed;top:50%;right:16px;transform:translateY(-50%);
-               width:8px;height:90px;background:#111;border:1px solid #1a1a1a;
-               border-radius:4px;overflow:hidden;display:flex;flex-direction:column-reverse;
-               pointer-events:none;z-index:10; }
-  #nitro-fill { width:100%;background:linear-gradient(#00ffcc,#0af); }
-  #progress { position:fixed;bottom:12px;left:14px;font-size:.68rem;color:#555;
-              pointer-events:none;z-index:10; }
-  .overlay { position:fixed;inset:0;display:none;align-items:center;justify-content:center;
-             flex-direction:column;gap:18px;background:rgba(0,0,0,.88);z-index:30; }
-  #crash-msg h2 { color:#f44;font-size:2rem;letter-spacing:4px; }
-  #win-msg h2 { color:#00ffcc;font-size:2rem;letter-spacing:3px; }
-  .overlay p { color:#555;font-size:.85rem; }
-  .overlay-btn { background:transparent;border:1px solid rgba(0,255,200,.3);color:#00ffcc;
-                 padding:9px 26px;border-radius:5px;font-family:monospace;font-size:.85rem;
-                 cursor:pointer;letter-spacing:2px; }
-  .overlay-btn:hover { background:rgba(0,255,200,.08); }
-  #win-time { font-size:1.4rem;color:#00ffcc;font-weight:700; }
-  #mobile-controls { display:none;position:fixed;bottom:0;left:0;right:0;
-                     height:180px;pointer-events:none;z-index:25; }
-  #left-pad { position:absolute;bottom:20px;left:16px;display:flex;gap:10px;pointer-events:all; }
-  #btn-up, #btn-down, #btn-jump, #btn-left, #btn-right { font-size:.68rem;letter-spacing:1px; }
-  #right-pad { position:absolute;bottom:20px;right:16px;display:flex;flex-direction:column;
-               gap:10px;align-items:center;pointer-events:all; }
-  .mob-btn { width:58px;height:58px;background:rgba(0,255,200,0.10);
-             border:1.5px solid rgba(0,255,200,0.30);border-radius:13px;
-             color:#00ffcc;font-size:1.28rem;display:flex;align-items:center;
-             justify-content:center;cursor:pointer;user-select:none;-webkit-user-select:none;
-             touch-action:none;transition:background 0.1s; }
-  .mob-btn:active, .mob-btn.pressed { background:rgba(0,255,200,0.28);border-color:rgba(0,255,200,0.70); }
-  @media (pointer: coarse) {
-    #mobile-controls { display:block; }
-    #hud-right { display:none; }
-    #progress { bottom:180px; }
-    #nitro-bar { bottom:180px;top:auto;transform:none; }
-    .mob-btn { width:52px;height:52px;font-size:1.15rem; }
-    #left-pad { gap:9px;bottom:18px;left:14px; }
-    #right-pad { gap:9px;bottom:18px;right:14px; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #000; color: #fff; font-family: 'Segoe UI', monospace; min-height: 100vh; overflow-x: hidden; }
+  .hero { text-align: center; padding: 48px 20px 32px; }
+  .hero h1 { font-size: 3.2rem; font-weight: 900; letter-spacing: -1px; color: #00ffcc; }
+  .hero p { color: #555; margin-top: 10px; font-size: 0.9rem; letter-spacing: 2px; text-transform: uppercase; }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+    padding: 0 24px 48px;
+    max-width: 1200px;
+    margin: 0 auto;
   }
+  @media (max-width: 640px) {
+    .grid { grid-template-columns: repeat(2, 1fr); gap: 10px; padding: 0 12px 32px; }
+    .fund-code { font-size: 1.2rem !important; }
+    .fund-name { font-size: 0.68rem !important; margin: 4px 0 10px !important; }
+  }
+  .card {
+    background: #0a0a0a;
+    border: 1px solid #1a1a1a;
+    border-radius: 12px;
+    padding: 20px;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+  .card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(0,255,200,0.04), transparent);
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  .card:hover { border-color: #00ffcc44; transform: translateY(-2px); box-shadow: 0 8px 32px rgba(0,255,200,0.08); }
+  .card:hover::before { opacity: 1; }
+  .card:active { transform: translateY(0); }
+  .fund-code { font-size: 1.6rem; font-weight: 900; font-family: monospace; letter-spacing: 1px; }
+  .fund-name { font-size: 0.78rem; color: #666; margin: 6px 0 16px; line-height: 1.4; }
+  .mini-chart { width: 100%; height: 50px; margin: 8px 0; }
+  .play-btn {
+    position: absolute; top: 16px; right: 16px;
+    background: rgba(0,255,200,0.1); border: 1px solid rgba(0,255,200,0.2);
+    border-radius: 50%; width: 32px; height: 32px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; color: #00ffcc; opacity: 0; transition: opacity 0.2s;
+  }
+  .card:hover .play-btn { opacity: 1; }
+  .loading { text-align: center; color: #333; padding: 80px; font-size: 0.9rem; letter-spacing: 2px; }
 </style>
 </head>
 <body>
-<canvas id="c"></canvas>
-<div id="hud-left">
-  <a id="back-btn" href="index.html">← FON SEÇ</a>
-  <div id="fund-code">---</div>
-  <div id="fund-name">Yükleniyor...</div>
+<div class="hero">
+  <h1>FonRider</h1>
+  <p id="date-range">—</p>
 </div>
-<div id="hud-right">
-  <div class="ctrl-row"><span class="ctrl-key">↑</span> Gaz</div>
-  <div class="ctrl-row"><span class="ctrl-key">↓</span> Fren</div>
-  <div class="ctrl-row"><span class="ctrl-key">←</span> Geri Yaslan</div>
-  <div class="ctrl-row"><span class="ctrl-key">→</span> İleri Eğil</div>
-  <div class="ctrl-row"><span class="ctrl-key">Space</span> Zıpla</div>
-  <div class="ctrl-row"><span class="ctrl-key">R</span> Yeniden</div>
+<div class="grid" id="grid">
+  <div class="loading">YÜKLENİYOR...</div>
 </div>
-<div id="nitro-bar"><div id="nitro-fill" style="height:100%"></div></div>
-<div id="progress">— | 0%</div>
-<div id="mobile-controls">
-  <div id="left-pad">
-    <button class="mob-btn" id="btn-left">ARKA</button>
-    <button class="mob-btn" id="btn-right">ÖN</button>
-  </div>
-  <div id="right-pad">
-    <button class="mob-btn" id="btn-up">İLERİ</button>
-    <button class="mob-btn" id="btn-jump">ZIPLA</button>
-    <button class="mob-btn" id="btn-down">GERİ</button>
-  </div>
-</div>
-<div id="crash-msg" class="overlay">
-  <h2>💥 CRASH!</h2>
-  <p>Binici düştü...</p>
-  <button class="overlay-btn" onclick="restartGame()">YENİDEN BAŞLA</button>
-</div>
-<div id="win-msg" class="overlay">
-  <h2>🏆 BAŞARDIN!</h2>
-  <div id="win-time">--:--</div>
-  <p>Tüm grafik aşıldı!</p>
-  <button class="overlay-btn" onclick="restartGame()">TEKRAR</button>
-</div>
-
 <script src="data.js"></script>
 <script>
-'use strict';
-
-const canvas = document.getElementById('c');
-const ctx = canvas.getContext('2d');
-function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
-resize();
-window.addEventListener('resize', resize);
-
-const isMobile = window.matchMedia('(pointer: coarse)').matches;
-const WR  = isMobile ? 12 : 17;
-const WB  = isMobile ? 18 : 26;
-const WDY = isMobile ?  5 :  7;
-const SPACING = 200;
-
-let terrainPts = [], fundData = null;
-
-function buildTerrain(prices) {
-  terrainPts = [];
-  const H = canvas.height, TOP = H * 0.08, BOT = H * 0.96;
+function sparklinePath(prices, w, h) {
   const vals = prices.map(p => p[1]);
-  const baseline = vals.map((_, i) => {
-    const s = vals.slice(Math.max(0, i - 1), Math.min(vals.length, i + 2));
-    return s.reduce((a, b) => a + b, 0) / s.length;
+  const min = Math.min(...vals), max = Math.max(...vals), range = max - min || 1;
+  return vals.map((v, i) => `${(i / (vals.length - 1)) * w},${h - ((v - min) / range) * h}`).join(' ');
+}
+
+function renderGrid(data) {
+  const grid = document.getElementById('grid');
+  grid.innerHTML = '';
+  Object.entries(data).sort((a, b) => a[0].localeCompare(b[0])).forEach(([code, fund]) => {
+    const prices = fund.prices;
+    const isPos = prices[prices.length - 1][1] >= prices[0][1];
+    const lineColor = isPos ? '#00cc66' : '#ff4444';
+    const codeColor = isPos ? '#00ffcc' : '#ff5555';
+    const pts = sparklinePath(prices.slice(-60), 240, 48);
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = `
+      <div class="play-btn">▶</div>
+      <div class="fund-code" style="color:${codeColor}">${code}</div>
+      <div class="fund-name">${fund.name}</div>
+      <svg class="mini-chart" viewBox="0 0 240 48" preserveAspectRatio="none">
+        <defs>
+          <linearGradient id="g${code}" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="${lineColor}" stop-opacity="0.3"/>
+            <stop offset="100%" stop-color="${lineColor}" stop-opacity="0"/>
+          </linearGradient>
+        </defs>
+        <polygon points="${pts} 240,48 0,48" fill="url(#g${code})"/>
+        <polyline points="${pts}" fill="none" stroke="${lineColor}" stroke-width="1.5"/>
+      </svg>
+    `;
+    card.addEventListener('click', () => { window.location.href = `game.html?fund=${code}`; });
+    grid.appendChild(card);
   });
-  const raw = vals.map((v, i) => v - baseline[i]);
-  const deviations = raw.map((_, i) => {
-    const s = raw.slice(Math.max(0, i - 1), Math.min(raw.length, i + 2));
-    return s.reduce((a, b) => a + b, 0) / s.length;
+}
+
+(function () {
+  let firstDate = '9999', lastDate = '0000';
+  Object.values(FONDATA).forEach(f => {
+    if (f.prices[0][0] < firstDate) firstDate = f.prices[0][0];
+    const ld = f.prices[f.prices.length - 1][0];
+    if (ld > lastDate) lastDate = ld;
   });
-  const devMin = Math.min(...deviations), devMax = Math.max(...deviations);
-  const devRng = devMax - devMin || 1;
-  // Kök fonksiyon ile non-linear genişleme:
-  // fiyat sırası/gerçekliği korunur (monoton), küçük sapmalar görsel olarak dramatikleşir
-  const expand = t => {
-    const c = t - 0.5;
-    return 0.5 + Math.sign(c) * Math.pow(Math.abs(c) * 2, 0.5) * 0.5;
-  };
-  const toY = dev => {
-    const t = (dev - devMin) / devRng;
-    return BOT - Math.max(0, Math.min(1, expand(t))) * (BOT - TOP);
-  };
-  prices.forEach((p, i) =>
-    terrainPts.push({ x: 400 + i * SPACING, y: toY(deviations[i]), price: p[1], date: p[0] })
-  );
-}
-
-function terrainAt(x) {
-  const pts = terrainPts;
-  if (pts.length < 2) return { y: 99999, nx: 0, ny: -1 };
-  if (x <= pts[0].x) return { y: pts[0].y, nx: 0, ny: -1 };
-  if (x >= pts[pts.length - 1].x) return { y: pts[pts.length - 1].y, nx: 0, ny: -1 };
-  let lo = 0, hi = pts.length - 2;
-  while (lo < hi) { const m = (lo + hi) >> 1; if (pts[m + 1].x <= x) lo = m + 1; else hi = m; }
-  const a = pts[lo], b = pts[lo + 1];
-  const t = (x - a.x) / (b.x - a.x);
-  const y = a.y + (b.y - a.y) * t;
-  const dx = b.x - a.x, dy = b.y - a.y, len = Math.hypot(dx, dy) || 1;
-  return { y, nx: dy / len, ny: -dx / len };
-}
-
-const B = { x: 0, y: 0, vx: 0, vy: 0, angle: 0, avel: 0, eng: 0, rSpin: 0, fSpin: 0 };
-
-function wPos(side) {
-  const ca = Math.cos(B.angle), sa = Math.sin(B.angle);
-  return { x: B.x + ca * (side * WB) - sa * WDY, y: B.y + sa * (side * WB) + ca * WDY };
-}
-
-const keys = {};
-let nitro = 100, crashed = false, won = false, flipTimer = 0, jumpCD = 0;
-let flipAccum = 0, flipShowTimer = 0;
-const FLIP_SHOW_FRAMES = 90;
-let camX = 0, camY = 0, startTime = 0;
-const fundCode = new URLSearchParams(window.location.search).get('fund') || 'AFA';
-
-window.addEventListener('keydown', e => {
-  keys[e.code] = true;
-  if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code)) e.preventDefault();
-  if (e.code === 'KeyR') restartGame();
-});
-window.addEventListener('keyup', e => { keys[e.code] = false; });
-
-function bindMobBtn(id, code) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  const press   = e => { e.preventDefault(); keys[code] = true;  el.classList.add('pressed'); };
-  const release = e => { e.preventDefault(); keys[code] = false; el.classList.remove('pressed'); };
-  el.addEventListener('touchstart',  press,   { passive: false });
-  el.addEventListener('touchend',    release, { passive: false });
-  el.addEventListener('touchcancel', release, { passive: false });
-}
-bindMobBtn('btn-jump',  'Space');
-bindMobBtn('btn-up',    'ArrowUp');
-bindMobBtn('btn-down',  'ArrowDown');
-bindMobBtn('btn-left',  'ArrowLeft');
-bindMobBtn('btn-right', 'ArrowRight');
-document.addEventListener('touchmove',     e => e.preventDefault(), { passive: false });
-document.addEventListener('gesturestart',  e => e.preventDefault());
-
-function update() {
-  if (crashed || won) return;
-
-  if (keys['ArrowUp']  || keys['KeyW']) B.eng = Math.min(0.405, B.eng + 0.013);
-  else if (keys['ArrowDown'] || keys['KeyS']) B.eng = Math.max(-0.136, B.eng - 0.008);
-  else B.eng *= 0.88;
-  if (!keys['ArrowUp'] && !keys['Space']) nitro = Math.min(100, nitro + 0.12);
-
-  {
-    const _rw = wPos(-1), _fw = wPos(1);
-    var rGnd = (_rw.y + WR) - terrainAt(_rw.x).y > -3;
-    var fGnd = (_fw.y + WR) - terrainAt(_fw.x).y > -3;
-  }
-  const onGnd = rGnd || fGnd;
-
-  if (onGnd) {
-    const cT = terrainAt(B.x);
-    B.vx += (-cT.ny) * B.eng;
-    B.vy +=  (cT.nx) * B.eng;
-  } else {
-    B.vx += B.eng * 0.01;
-    B.vx *= 0.978;
-  }
-
-  B.vy += onGnd ? 0.32 : 0.136;
-  B.vx *= 0.993; B.vy *= 0.999;
-
-  const SUBS = 5;
-  for (let s = 0; s < SUBS; s++) {
-    B.x += B.vx / SUBS; B.y += B.vy / SUBS; B.angle += B.avel / SUBS;
-    const rw = wPos(-1), fw = wPos(1);
-    const rT = terrainAt(rw.x), fT = terrainAt(fw.x);
-    const rPen = (rw.y + WR) - rT.y, fPen = (fw.y + WR) - fT.y;
-    const resolve = (pen, T) => {
-      if (pen <= 0) return;
-      B.x += T.nx * pen * 0.38; B.y += T.ny * pen * 0.38;
-      const vn = B.vx * T.nx + B.vy * T.ny;
-      if (vn < 0) { B.vx -= T.nx * vn * 0.32; B.vy -= T.ny * vn * 0.32; }
-      const vt = B.vx * T.ny - B.vy * T.nx;
-      B.vx -= T.ny * vt * 0.006; B.vy += T.nx * vt * 0.006;
-    };
-    resolve(rPen, rT); resolve(fPen, fT);
-    if (B.vy < -22) B.vy = -22;
-  }
-
-  {
-    const rw = wPos(-1), fw = wPos(1);
-    const rPen2 = (rw.y + WR) - terrainAt(rw.x).y;
-    const fPen2 = (fw.y + WR) - terrainAt(fw.x).y;
-    const rG2 = rPen2 > 0, fG2 = fPen2 > 0;
-    const leanInput = (keys['ArrowRight'] || keys['KeyD'] ? 1 : 0) - (keys['ArrowLeft'] || keys['KeyA'] ? 1 : 0);
-
-    if (rG2 && fG2) {
-      const rwy = terrainAt(rw.x).y - WR, fwy = terrainAt(fw.x).y - WR;
-      const tAngle = Math.atan2(fwy - rwy, fw.x - rw.x);
-      if (leanInput === 0) {
-        let da = tAngle - B.angle;
-        while (da >  Math.PI) da -= 2 * Math.PI;
-        while (da < -Math.PI) da += 2 * Math.PI;
-        B.angle += da * 0.35; B.avel = 0;
-      } else {
-        const target = tAngle + leanInput * 0.28;
-        let da = target - B.angle;
-        while (da >  Math.PI) da -= 2 * Math.PI;
-        while (da < -Math.PI) da += 2 * Math.PI;
-        B.angle += da * 0.048;
-        const dev = B.angle - tAngle;
-        B.angle = tAngle + Math.max(-0.28, Math.min(0.28, dev));
-        B.avel = 0;
-      }
-      B.vx *= 0.988;
-    } else if (rG2 || fG2) {
-      const rwy2 = terrainAt(rw.x).y - WR, fwy2 = terrainAt(fw.x).y - WR;
-      const tA2 = Math.atan2(fwy2 - rwy2, fw.x - rw.x);
-      if (leanInput === 0) {
-        let da = tA2 - B.angle;
-        while (da >  Math.PI) da -= 2 * Math.PI;
-        while (da < -Math.PI) da += 2 * Math.PI;
-        B.angle += da * 0.25; B.avel = 0;
-      } else {
-        B.avel += leanInput * 0.009; B.avel *= 0.4;
-      }
-    } else {
-      B.avel += leanInput * 0.014;
-      B.avel = Math.max(-0.12, Math.min(0.12, B.avel));
-      B.avel *= 0.90;
-      flipAccum += B.avel;
-      if (Math.abs(flipAccum) >= Math.PI * 340 / 180) {
-        flipAccum = 0;
-        flipShowTimer = FLIP_SHOW_FRAMES;
-      }
-    }
-  }
-  if (rGnd || fGnd) flipAccum = 0;
-
-  const groundBelowY = terrainAt(B.x).y;
-  if (B.y < groundBelowY - 480) { B.y = groundBelowY - 480; B.vy = Math.max(B.vy, 3); }
-
-  if (keys['Space'] && onGnd && jumpCD <= 0 && nitro > 5) {
-    B.vy = Math.min(B.vy, -6.6); nitro -= 14; jumpCD = 38;
-  }
-  if (jumpCD > 0) jumpCD--;
-
-  const leftWall  = terrainPts[0].x + 50;
-  const rightWall = terrainPts[terrainPts.length - 1].x - 20;
-  if (B.x < leftWall) { B.x = leftWall; B.vx = Math.max(0, B.vx); }
-  if (B.x > rightWall && !won) triggerWin();
-
-  B.rSpin += B.vx / WR; B.fSpin += B.vx / WR;
-}
-
-function checkCrash() {
-  const a = ((B.angle % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
-  if (a > Math.PI * 0.52 && a < Math.PI * 1.48) flipTimer++; else flipTimer = 0;
-  const ca = Math.cos(B.angle), sa = Math.sin(B.angle);
-  const waistX = B.x + ca * (-4) - sa * (-21);
-  const waistY = B.y + sa * (-4) + ca * (-21);
-  if (waistY > terrainAt(waistX).y) {
-    const spawnX = B.x - 250;
-    Object.assign(B, { x: spawnX, y: terrainAt(spawnX).y - WR - WDY - 8, vx: 0, vy: 0, angle: 0, avel: 0, eng: 0 });
-    return;
-  }
-  if (flipTimer > 110 || B.y > canvas.height + 300) triggerCrash();
-}
-
-function triggerCrash() {
-  crashed = true;
-  document.getElementById('crash-msg').style.display = 'flex';
-}
-
-function triggerWin() {
-  won = true;
-  const elapsed = Math.floor((Date.now() - startTime) / 1000);
-  const m = Math.floor(elapsed / 60).toString().padStart(2, '0');
-  const s = (elapsed % 60).toString().padStart(2, '0');
-  document.getElementById('win-time').textContent = m + ':' + s;
-  document.getElementById('win-msg').style.display = 'flex';
-}
-
-function restartGame() {
-  const spx = terrainPts[0].x + 70;
-  Object.assign(B, { x: spx, y: terrainAt(spx).y - WR - WDY - 8, vx: 0, vy: 0, angle: 0, avel: 0, eng: 0, rSpin: 0, fSpin: 0 });
-  camX = spx - canvas.width * 0.3;
-  camY = terrainAt(spx).y - canvas.height * 0.55;
-  nitro = 100; crashed = false; won = false; flipTimer = 0; jumpCD = 0; flipAccum = 0; flipShowTimer = 0; startTime = Date.now();
-  document.getElementById('crash-msg').style.display = 'none';
-  document.getElementById('win-msg').style.display = 'none';
-}
-window.restartGame = restartGame;
-
-function updateCamera() {
-  const camOffsetX = isMobile ? 0.14 : 0.30;
-  const camOffsetY = isMobile ? 0.58 : 0.68;
-  camX += (B.x - canvas.width  * camOffsetX - camX) * 0.09;
-  camY += (B.y - canvas.height * camOffsetY  - camY) * 0.09;
-}
-
-function cl2s(lx, ly) {
-  const ca = Math.cos(B.angle), sa = Math.sin(B.angle);
-  return { x: B.x - camX + ca * lx - sa * ly, y: B.y - camY + sa * lx + ca * ly };
-}
-
-function drawBg() {
-  ctx.fillStyle = '#000a0d';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.strokeStyle = 'rgba(0,255,200,0.02)'; ctx.lineWidth = 1;
-  const g = 100;
-  const ox = ((-camX) % g + g) % g, oy = ((-camY) % g + g) % g;
-  for (let x = ox; x < canvas.width;  x += g) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke(); }
-  for (let y = oy; y < canvas.height; y += g) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke(); }
-}
-
-function drawBarrier(wx, wy, label, date) {
-  const sx = wx - camX, sy = wy - camY, H = 120;
-  ctx.strokeStyle = '#555'; ctx.lineWidth = 4;
-  ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(sx, sy - H); ctx.stroke();
-  for (let i = 0; i < 5; i++) {
-    const y1 = sy - H + i * (H / 5), y2 = y1 + H / 5;
-    ctx.fillStyle = i % 2 === 0 ? '#cc2222' : '#cccccc';
-    ctx.fillRect(sx - 6, y1, 12, y2 - y1);
-  }
-  ctx.textAlign = 'center';
-  ctx.font = 'bold 11px monospace'; ctx.fillStyle = '#fff';
-  ctx.fillText(label, sx, sy - H - 8);
-  if (date) { ctx.font = '10px monospace'; ctx.fillStyle = '#aaa'; ctx.fillText(date, sx, sy - H - 22); }
-  ctx.textAlign = 'left';
-}
-
-function drawFlag(wx, wy, date) {
-  const sx = wx - camX, sy = wy - camY, poleH = 70;
-  ctx.strokeStyle = '#888'; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(sx, sy - poleH); ctx.stroke();
-  const t = Date.now() / 400;
-  ctx.fillStyle = '#f44';
-  ctx.beginPath();
-  ctx.moveTo(sx, sy - poleH);
-  ctx.bezierCurveTo(sx+12, sy-poleH+Math.sin(t)*3,   sx+24, sy-poleH+Math.sin(t+1)*3,   sx+30, sy-poleH+6+Math.sin(t+0.5)*2);
-  ctx.bezierCurveTo(sx+24, sy-poleH+12+Math.sin(t)*2, sx+12, sy-poleH+15+Math.sin(t-1)*3, sx,   sy-poleH+18);
-  ctx.fill();
-  ctx.textAlign = 'center';
-  ctx.font = 'bold 11px monospace'; ctx.fillStyle = '#f44';
-  ctx.fillText('BİTİŞ', sx, sy - poleH - 10);
-  if (date) { ctx.font = '10px monospace'; ctx.fillStyle = '#aaa'; ctx.fillText(date, sx, sy - poleH - 24); }
-  ctx.textAlign = 'left';
-}
-
-function drawTerrain() {
-  if (terrainPts.length < 2) return;
-  const vl = camX - 200, vr = camX + canvas.width + 200;
-  const vis = terrainPts.filter(p => p.x >= vl - SPACING && p.x <= vr + SPACING);
-  if (vis.length < 2) return;
-
-  ctx.beginPath();
-  ctx.moveTo(vis[0].x - camX, vis[0].y - camY);
-  vis.forEach(p => ctx.lineTo(p.x - camX, p.y - camY));
-  ctx.lineTo(vis[vis.length-1].x - camX, canvas.height + 300);
-  ctx.lineTo(vis[0].x - camX, canvas.height + 300);
-  ctx.closePath();
-  const gr = ctx.createLinearGradient(0, 0, 0, canvas.height);
-  gr.addColorStop(0, 'rgba(0,255,180,0.06)');
-  gr.addColorStop(1, 'rgba(0,45,38,0.22)');
-  ctx.fillStyle = gr; ctx.fill();
-
-  ctx.beginPath();
-  vis.forEach((p, i) => i === 0 ? ctx.moveTo(p.x - camX, p.y - camY) : ctx.lineTo(p.x - camX, p.y - camY));
-  ctx.strokeStyle = '#00ffcc'; ctx.lineWidth = 2.5;
-  ctx.shadowBlur = 14; ctx.shadowColor = '#00ffcc'; ctx.stroke(); ctx.shadowBlur = 0;
-
-  ctx.textAlign = 'center';
-  const fmt = v => v.toFixed(6);
-  for (let i = 0; i < terrainPts.length; i++) {
-    const p = terrainPts[i];
-    if (!p.date || p.x < vl || p.x > vr) continue;
-    const sx = p.x - camX, sy = p.y - camY;
-    const next = terrainPts[i + 1];
-    const isMonthEnd = next && next.date && p.date.slice(0, 7) !== next.date.slice(0, 7);
-
-    ctx.setLineDash([2, 3]); ctx.strokeStyle = 'rgba(0,255,200,.35)'; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(sx, sy - 4); ctx.lineTo(sx, sy - 44); ctx.stroke();
-    ctx.setLineDash([]);
-
-    ctx.beginPath(); ctx.arc(sx, sy, isMonthEnd ? 5 : 4, 0, Math.PI * 2);
-    ctx.fillStyle = '#00ffcc'; ctx.fill();
-
-    const priceStr = fmt(p.price);
-    ctx.font = 'bold 10px monospace';
-    const pw = ctx.measureText(priceStr).width;
-    ctx.fillStyle = 'rgba(0,8,10,0.82)';
-    ctx.fillRect(sx - pw / 2 - 4, sy - 58, pw + 8, 14);
-    ctx.fillStyle = '#00ffcc';
-    ctx.fillText(priceStr, sx, sy - 47);
-
-    ctx.font = '11px monospace';
-    const dw = ctx.measureText(p.date).width;
-    ctx.fillStyle = 'rgba(0,8,10,0.82)';
-    ctx.fillRect(sx - dw / 2 - 4, sy + 8, dw + 8, 15);
-    ctx.fillStyle = 'rgba(255,255,255,.80)';
-    ctx.fillText(p.date, sx, sy + 20);
-  }
-  ctx.textAlign = 'left';
-
-  const startPt = terrainPts[0];
-  if (startPt.x >= vl && startPt.x <= vr) drawBarrier(startPt.x + 50, startPt.y, 'BAŞLANGIÇ', startPt.date);
-  const endPt = terrainPts[terrainPts.length - 1];
-  if (endPt.x >= vl && endPt.x <= vr) drawFlag(endPt.x, endPt.y, endPt.date);
-}
-
-function drawWheel(wx, wy, spin) {
-  const px = wx - camX, py = wy - camY;
-  ctx.beginPath(); ctx.arc(px, py, WR, 0, Math.PI * 2);
-  ctx.strokeStyle = '#333'; ctx.lineWidth = 4; ctx.stroke();
-  ctx.strokeStyle = '#888'; ctx.lineWidth = 1.5; ctx.stroke();
-  ctx.strokeStyle = '#555'; ctx.lineWidth = 1;
-  for (let i = 0; i < 6; i++) {
-    const a = spin + i / 6 * Math.PI * 2;
-    ctx.beginPath();
-    ctx.moveTo(px + Math.cos(a) * 3,       py + Math.sin(a) * 3);
-    ctx.lineTo(px + Math.cos(a) * (WR - 2), py + Math.sin(a) * (WR - 2));
-    ctx.stroke();
-  }
-  ctx.beginPath(); ctx.arc(px, py, 3, 0, Math.PI * 2);
-  ctx.fillStyle = '#aaa'; ctx.fill();
-}
-
-function drawBike() {
-  const rw = wPos(-1), fw = wPos(1);
-  const rpx = rw.x - camX, rpy = rw.y - camY;
-  const fpx = fw.x - camX, fpy = fw.y - camY;
-
-  const bb    = cl2s( 0,   6);
-  const stTop = cl2s(-8, -15);
-  const htTop = cl2s(17, -15);
-  const hbEnd = cl2s(23, -27);
-  const seatL = cl2s(-13, -20);
-  const seatR = cl2s(  3, -20);
-
-  const rAtt = cl2s(-WB, WDY), fAtt = cl2s(WB, WDY);
-  ctx.setLineDash([2, 3]); ctx.strokeStyle = 'rgba(100,100,100,.25)'; ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.moveTo(rAtt.x, rAtt.y); ctx.lineTo(rpx, rpy); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(fAtt.x, fAtt.y); ctx.lineTo(fpx, fpy); ctx.stroke();
-  ctx.setLineDash([]);
-
-  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-  ctx.strokeStyle = '#bbb'; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.moveTo(rpx, rpy);       ctx.lineTo(bb.x, bb.y);       ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(bb.x, bb.y);     ctx.lineTo(stTop.x, stTop.y); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(stTop.x,stTop.y);ctx.lineTo(htTop.x, htTop.y); ctx.stroke();
-  ctx.strokeStyle = '#777'; ctx.lineWidth = 1.8;
-  ctx.beginPath(); ctx.moveTo(htTop.x,htTop.y);ctx.lineTo(bb.x, bb.y);       ctx.stroke();
-  ctx.strokeStyle = '#bbb'; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.moveTo(htTop.x,htTop.y);ctx.lineTo(fpx, fpy);         ctx.stroke();
-  ctx.strokeStyle = '#666'; ctx.lineWidth = 1.5;
-  ctx.beginPath(); ctx.moveTo(htTop.x,htTop.y);ctx.lineTo(hbEnd.x, hbEnd.y); ctx.stroke();
-  ctx.strokeStyle = '#444'; ctx.lineWidth = 3;
-  ctx.beginPath(); ctx.moveTo(seatL.x,seatL.y);ctx.lineTo(seatR.x, seatR.y); ctx.stroke();
-
-  drawWheel(rw.x, rw.y, B.rSpin);
-  drawWheel(fw.x, fw.y, B.fSpin);
-
-  const hips  = cl2s( -4, -21);
-  const shldr = cl2s( -3, -38);
-  const head  = cl2s( -2, -47);
-  const rArm  = cl2s( 23, -27);
-  const lArm  = cl2s( 14, -30);
-  const rKnee = cl2s(  3, -10);
-  const rFoot = cl2s( 10,  -3);
-  const lKnee = cl2s( -3,  -9);
-  const lFoot = cl2s(  3,   3);
-
-  ctx.lineCap = 'round'; ctx.lineWidth = 1.8; ctx.strokeStyle = '#e0e0e0';
-  ctx.beginPath(); ctx.moveTo(hips.x, hips.y);  ctx.lineTo(shldr.x, shldr.y); ctx.stroke();
-  ctx.beginPath(); ctx.arc(head.x, head.y, 6, 0, Math.PI * 2);
-  ctx.fillStyle = '#f5c68a'; ctx.fill();
-  ctx.strokeStyle = '#c9a070'; ctx.lineWidth = 1; ctx.stroke();
-  ctx.strokeStyle = '#e0e0e0'; ctx.lineWidth = 1.8;
-  ctx.beginPath(); ctx.moveTo(shldr.x,shldr.y); ctx.lineTo(rArm.x, rArm.y); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(shldr.x,shldr.y); ctx.lineTo(lArm.x, lArm.y); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(hips.x,hips.y); ctx.lineTo(rKnee.x,rKnee.y); ctx.lineTo(rFoot.x,rFoot.y); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(hips.x,hips.y); ctx.lineTo(lKnee.x,lKnee.y); ctx.lineTo(lFoot.x,lFoot.y); ctx.stroke();
-}
-
-function drawFlip() {
-  if (flipShowTimer <= 0) return;
-  const alpha = flipShowTimer / FLIP_SHOW_FRAMES;
-  const scale = 1 + (1 - alpha) * 0.3;
-  flipShowTimer--;
-  ctx.save();
-  ctx.globalAlpha = alpha;
-  ctx.translate(canvas.width / 2, canvas.height * 0.38);
-  ctx.scale(scale, scale);
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.font = 'bold 52px monospace';
-  ctx.shadowBlur = 28;
-  ctx.shadowColor = '#ff7700';
-  ctx.fillStyle = '#ffcc00';
-  ctx.fillText('TAKLA SHOW', 0, 0);
-  ctx.shadowBlur = 60;
-  ctx.shadowColor = '#ff4400';
-  ctx.fillStyle = '#fff5cc';
-  ctx.fillText('TAKLA SHOW', 0, 0);
-  ctx.restore();
-}
-
-function updateHUD() {
-  if (!fundData) return;
-  const ds = terrainPts[0];
-  const di = Math.max(0, Math.round((B.x - ds.x) / SPACING));
-  const ap = fundData.prices.slice(-200);
-  const pct = Math.min(100, Math.max(0, di / ap.length * 100)).toFixed(0);
-  const cd = ap[Math.min(di, ap.length - 1)]?.[0] ?? '---';
-  document.getElementById('progress').textContent = cd + '  |  ' + pct + '%';
-  document.getElementById('nitro-fill').style.height = nitro + '%';
-}
-
-function loop() {
-  update();
-  if (!crashed && !won) { updateCamera(); checkCrash(); }
-  drawBg(); drawTerrain(); drawBike(); drawFlip(); updateHUD();
-  requestAnimationFrame(loop);
-}
-
-function init() {
-  fundData = FONDATA[fundCode];
-  if (!fundData) { alert('Fon bulunamadı: ' + fundCode); return; }
-  document.getElementById('fund-code').textContent = fundCode;
-  document.getElementById('fund-name').textContent = fundData.name;
-  document.title = 'FonRider - ' + fundCode;
-  buildTerrain(fundData.prices.slice(-200));
-  const spx = terrainPts[0].x + 70;
-  const spy = terrainAt(spx).y;
-  Object.assign(B, { x: spx, y: spy - WR - WDY - 8, vx: 0, vy: 0, angle: 0, avel: 0, eng: 0, rSpin: 0, fSpin: 0 });
-  camX = spx - canvas.width * 0.3;
-  camY = spy - canvas.height * 0.55;
-  startTime = Date.now();
-  requestAnimationFrame(loop);
-}
-
-init();
+  document.getElementById('date-range').textContent = firstDate + ' — ' + lastDate;
+  renderGrid(FONDATA);
+})();
 </script>
 </body>
 </html>

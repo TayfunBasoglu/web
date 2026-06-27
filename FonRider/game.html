@@ -43,6 +43,7 @@
   #mobile-controls { display:none;position:fixed;bottom:0;left:0;right:0;
                      height:180px;pointer-events:none;z-index:25; }
   #left-pad { position:absolute;bottom:20px;left:16px;display:flex;gap:10px;pointer-events:all; }
+  #btn-up, #btn-down, #btn-jump, #btn-left, #btn-right { font-size:.68rem;letter-spacing:1px; }
   #right-pad { position:absolute;bottom:20px;right:16px;display:flex;flex-direction:column;
                gap:10px;align-items:center;pointer-events:all; }
   .mob-btn { width:58px;height:58px;background:rgba(0,255,200,0.10);
@@ -81,12 +82,13 @@
 <div id="progress">— | 0%</div>
 <div id="mobile-controls">
   <div id="left-pad">
-    <button class="mob-btn" id="btn-left">←</button>
-    <button class="mob-btn" id="btn-right">→</button>
+    <button class="mob-btn" id="btn-left">ARKA</button>
+    <button class="mob-btn" id="btn-right">ÖN</button>
   </div>
   <div id="right-pad">
-    <button class="mob-btn" id="btn-up">↑</button>
-    <button class="mob-btn" id="btn-down">↓</button>
+    <button class="mob-btn" id="btn-up">İLERİ</button>
+    <button class="mob-btn" id="btn-jump">ZIPLA</button>
+    <button class="mob-btn" id="btn-down">GERİ</button>
   </div>
 </div>
 <div id="crash-msg" class="overlay">
@@ -193,6 +195,7 @@ function bindMobBtn(id, code) {
   el.addEventListener('touchend',    release, { passive: false });
   el.addEventListener('touchcancel', release, { passive: false });
 }
+bindMobBtn('btn-jump',  'Space');
 bindMobBtn('btn-up',    'ArrowUp');
 bindMobBtn('btn-down',  'ArrowDown');
 bindMobBtn('btn-left',  'ArrowLeft');
@@ -315,9 +318,9 @@ function checkCrash() {
   const a = ((B.angle % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
   if (a > Math.PI * 0.52 && a < Math.PI * 1.48) flipTimer++; else flipTimer = 0;
   const ca = Math.cos(B.angle), sa = Math.sin(B.angle);
-  const headX = B.x + ca * (-2) - sa * (-47);
-  const headY = B.y + sa * (-2) + ca * (-47);
-  if (headY > terrainAt(headX).y) {
+  const waistX = B.x + ca * (-4) - sa * (-21);
+  const waistY = B.y + sa * (-4) + ca * (-21);
+  if (waistY > terrainAt(waistX).y) {
     const spawnX = B.x - 250;
     Object.assign(B, { x: spawnX, y: terrainAt(spawnX).y - WR - WDY - 8, vx: 0, vy: 0, angle: 0, avel: 0, eng: 0 });
     return;

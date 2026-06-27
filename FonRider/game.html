@@ -354,9 +354,10 @@ function restartGame() {
 window.restartGame = restartGame;
 
 function updateCamera() {
-  const camOffsetX = isMobile ? 0.20 : 0.30;
+  const camOffsetX = isMobile ? 0.14 : 0.30;
+  const camOffsetY = isMobile ? 0.58 : 0.68;
   camX += (B.x - canvas.width  * camOffsetX - camX) * 0.09;
-  camY += (B.y - canvas.height * 0.68        - camY) * 0.09;
+  camY += (B.y - canvas.height * camOffsetY  - camY) * 0.09;
 }
 
 function cl2s(lx, ly) {

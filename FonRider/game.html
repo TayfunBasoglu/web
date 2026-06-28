@@ -40,6 +40,11 @@
                  cursor:pointer;letter-spacing:2px; }
   .overlay-btn:hover { background:rgba(0,255,200,.08); }
   #win-time { font-size:1.4rem;color:#00ffcc;font-weight:700; }
+  #win-msg { gap:10px; }
+  #win-trophy { font-size:3.2rem;margin-bottom:4px; }
+  #win-stats { color:#888;font-size:.82rem;line-height:2;letter-spacing:1px;text-align:center; }
+  #win-stats span { color:#00ffcc; }
+  #confetti-canvas { position:fixed;inset:0;pointer-events:none;z-index:29; }
   #mobile-controls { display:none;position:fixed;bottom:0;left:0;right:0;
                      height:180px;pointer-events:none;z-index:25; }
   #left-pad { position:absolute;bottom:20px;left:16px;display:flex;gap:10px;pointer-events:all; }
@@ -96,10 +101,12 @@
   <p>Binici düştü...</p>
   <button class="overlay-btn" onclick="restartGame()">YENİDEN BAŞLA</button>
 </div>
+<canvas id="confetti-canvas"></canvas>
 <div id="win-msg" class="overlay">
-  <h2>🏆 BAŞARDIN!</h2>
+  <div id="win-trophy">🏆</div>
+  <h2>BAŞARDIN!</h2>
   <div id="win-time">--:--</div>
-  <p>Tüm grafik aşıldı!</p>
+  <div id="win-stats"></div>
   <button class="overlay-btn" onclick="restartGame()">TEKRAR</button>
 </div>
 
@@ -136,17 +143,37 @@ function smoothSharpValleys() {
     const isValley = B.y > A.y - 10 && B.y > C.y - 10;
     const isPeak   = B.y < A.y + 10 && B.y < C.y + 10;
 
-    if ((angle > 1.1 && isValley) || (angle > 0.95 && isPeak)) {
-      // Vadi: geniş boşluk (takılmayı önler); tepe: dar boşluk (içinden geçmeyi önler)
-      const PAD = isValley ? (angle > 1.6 ? 80 : angle > 1.3 ? 55 : 35) : 28;
+    if (angle > 0.95 && isPeak) {
+      const PAD = 28;
       const t = Math.min(0.45, PAD / abLen);
       const u = Math.min(0.45, PAD / bcLen);
       const px1 = B.x - abx * t, py1 = B.y - aby * t;
       const px2 = B.x + bcx * u, py2 = B.y + bcy * u;
       const mx  = (px1 + px2) / 2,  my  = (py1 + py2) / 2;
       out.push({ x: px1, y: py1, price: B.price, date: null });
-      out.push({ x: mx,  y: my,  price: B.price, date: B.date }); // etiket düzeltme bölgesinin ortasında
+      out.push({ x: mx,  y: my,  price: B.price, date: B.date });
       out.push({ x: px2, y: py2, price: B.price, date: null });
+    } else if (angle > 1.1 && isValley) {
+      const PAD = angle > 1.6 ? 80 : angle > 1.3 ? 55 : 35;
+      const t = Math.min(0.45, PAD / abLen);
+      const u = Math.min(0.45, PAD / bcLen);
+      const px1 = B.x - abx * t, py1 = B.y - aby * t;
+      const px2 = B.x + bcx * u, py2 = B.y + bcy * u;
+      const hSpread = px2 - px1;
+      const minFloor = WB * 2 + 20; // bisiklet boyutu kadar minimum zemin
+      if (hSpread < minFloor) {
+        // Çok dar V: bisiklet sığacak genişlikte düz zemin ekle
+        const floorY = (py1 + py2) / 2;
+        const halfW  = minFloor / 2;
+        out.push({ x: B.x - halfW, y: floorY, price: B.price, date: null });
+        out.push({ x: B.x,         y: floorY, price: B.price, date: B.date });
+        out.push({ x: B.x + halfW, y: floorY, price: B.price, date: null });
+      } else {
+        const mx = (px1 + px2) / 2, my = (py1 + py2) / 2;
+        out.push({ x: px1, y: py1, price: B.price, date: null });
+        out.push({ x: mx,  y: my,  price: B.price, date: B.date });
+        out.push({ x: px2, y: py2, price: B.price, date: null });
+      }
     } else {
       out.push(B);
     }
@@ -209,6 +236,9 @@ function wPos(side) {
 const keys = {};
 let nitro = 100, crashed = false, won = false, flipTimer = 0, jumpCD = 0;
 let flipAccum = 0, flipShowTimer = 0;
+let capeWorld = null;
+const CAPE_N = 5, CAPE_SEG = 9;
+let collectedLabels = new Set();
 const FLIP_SHOW_FRAMES = 135;
 let camX = 0, camY = 0, startTime = 0;
 const fundCode = new URLSearchParams(window.location.search).get('fund') || 'AFA';
@@ -240,8 +270,8 @@ document.addEventListener('gesturestart',  e => e.preventDefault());
 function update() {
   if (crashed || won) return;
 
-  if (keys['ArrowUp']  || keys['KeyW']) B.eng = Math.min(0.405, B.eng + 0.013);
-  else if (keys['ArrowDown'] || keys['KeyS']) B.eng = Math.max(-0.136, B.eng - 0.008);
+  if (keys['ArrowUp']  || keys['KeyW']) B.eng = Math.min(0.37, B.eng + 0.012);
+  else if (keys['ArrowDown'] || keys['KeyS']) B.eng = Math.max(-0.30, B.eng - 0.012);
   else B.eng *= 0.88;
   if (!keys['ArrowUp'] && !keys['Space']) nitro = Math.min(100, nitro + 0.12);
 
@@ -253,13 +283,26 @@ function update() {
   const onGnd = rGnd || fGnd;
 
   if (rGnd || fGnd) {
-    // Çift çeker + dik yamaç kurtarma
+    // Bisiklet açısı vs zemin açısı farkı >20° ise tutunum azalır, bisiklet titrer
+    // Referans: ön teker (tırmanma yönü); yalnızca dik zeminde uygula
     const slopeBoost = (T) => B.eng > 0 ? Math.max(1, 1 + (Math.abs(T.nx) - 0.40) * 1.6) : 1;
-    if (rGnd) { const rT = terrainAt(wPos(-1).x); const b = slopeBoost(rT); B.vx += (-rT.ny)*B.eng*0.65*b; B.vy += (rT.nx)*B.eng*0.65*b; }
-    if (fGnd) { const fT = terrainAt(wPos( 1).x); const b = slopeBoost(fT); B.vx += (-fT.ny)*B.eng*0.55*b; B.vy += (fT.nx)*B.eng*0.55*b; }
+    const refT = fGnd ? terrainAt(wPos(1).x) : terrainAt(wPos(-1).x);
+    const slopeAngle = Math.atan2(refT.nx, -refT.ny);
+    const maxDiff = Math.PI / 4.5; // 40 derece
+    let grip = 1.0;
+    if (Math.abs(slopeAngle) > maxDiff) { // sadece dik zeminde grip kontrolü
+      let da = B.angle - slopeAngle;
+      while (da >  Math.PI) da -= 2 * Math.PI;
+      while (da < -Math.PI) da += 2 * Math.PI;
+      const absDa = Math.abs(da);
+      grip = absDa < maxDiff ? 1.0 : Math.max(0.05, 1 - (absDa - maxDiff) / maxDiff);
+      if (grip < 0.6 && B.eng > 0.05) B.avel += (Math.random() - 0.5) * 0.010; // titreme
+    }
+    if (rGnd) { const rT = terrainAt(wPos(-1).x); const b = slopeBoost(rT); B.vx += (-rT.ny)*B.eng*0.62*b*grip; B.vy += (rT.nx)*B.eng*0.62*b*grip; }
+    if (fGnd) { const fT = terrainAt(wPos( 1).x); const b = slopeBoost(fT); B.vx += (-fT.ny)*B.eng*0.52*b*grip; B.vy += (fT.nx)*B.eng*0.52*b*grip; }
   } else {
     B.vx += B.eng * 0.01;
-    B.vx *= 0.978;
+    B.vx *= 0.997;
   }
 
   B.vy += onGnd ? 0.32 : 0.136;
@@ -267,7 +310,7 @@ function update() {
   // Zemindeyken hız tavanı — yamaç sonrası fırlamayı önler
   if (rGnd || fGnd) {
     const spd = Math.hypot(B.vx, B.vy);
-    if (spd > 11) { B.vx = B.vx/spd*11; B.vy = B.vy/spd*11; }
+    if (spd > 13) { B.vx = B.vx/spd*13; B.vy = B.vy/spd*13; }
     if (B.vy < -7.5 && B.eng < 0.1) B.vy = -7.5; // aktif tırmanışta vy tavanı devre dışı
     // Yokuş aşağı fazla hızlanmayı önle — motor kapalıysa ekstra fren
     if (B.eng < 0.05 && B.vx > 5) B.vx *= 0.968;
@@ -306,21 +349,30 @@ function update() {
     if (rG2 && fG2) {
       const rwy = terrainAt(rw.x).y - WR, fwy = terrainAt(fw.x).y - WR;
       const tAngle = Math.atan2(fwy - rwy, fw.x - rw.x);
-      // ≥65° eğimde sağ/sol lean etkisini %30 azalt
       const leanScale = Math.abs(tAngle) >= Math.PI * 65 / 180 ? 0.70 : 1.0;
       if (leanInput === 0) {
         let da = tAngle - B.angle;
         while (da >  Math.PI) da -= 2 * Math.PI;
         while (da < -Math.PI) da += 2 * Math.PI;
-        B.angle += da * 0.35; B.avel = 0;
+        B.angle += da * 0.80; B.avel = 0;
+        // Döndükten sonra iki tekeri de zemine ortala-sabitle (sadece yukarı it, zemine batırma)
+        const fw2 = wPos(1), rw2 = wPos(-1);
+        const fGap = (fw2.y + WR) - terrainAt(fw2.x).y;
+        const rGap = (rw2.y + WR) - terrainAt(rw2.x).y;
+        const repin = (fGap + rGap) * 0.5;
+        if (repin > 0) B.y -= repin;
+        const steepness = Math.abs(Math.sin(tAngle));
+        if (steepness > 0.28) B.vx *= (1 - steepness * 0.04);
       } else {
-        const target = tAngle + leanInput * 0.28 * leanScale;
+        // Dik eğimde lean hızını azalt — aniden takla atmasın
+        const steepLean = Math.max(0.35, 1 - Math.abs(tAngle) * 0.55);
+        const target = tAngle + leanInput * 0.196 * leanScale * steepLean;
         let da = target - B.angle;
         while (da >  Math.PI) da -= 2 * Math.PI;
         while (da < -Math.PI) da += 2 * Math.PI;
-        B.angle += da * 0.048 * leanScale;
+        B.angle += da * 0.0336 * leanScale * steepLean;
         const dev = B.angle - tAngle;
-        B.angle = tAngle + Math.max(-0.28 * leanScale, Math.min(0.28 * leanScale, dev));
+        B.angle = tAngle + Math.max(-0.196 * leanScale * steepLean, Math.min(0.196 * leanScale * steepLean, dev));
         B.avel = 0;
       }
       B.vx *= 0.988;
@@ -331,14 +383,23 @@ function update() {
         let da = tA2 - B.angle;
         while (da >  Math.PI) da -= 2 * Math.PI;
         while (da < -Math.PI) da += 2 * Math.PI;
-        B.angle += da * 0.25; B.avel = 0;
-        // Sadece ön teker yerdeyse arka tekeri aşağı çek (dikey kilitlenmeyi önler)
-        if (fG2 && !rG2 && Math.abs(tA2) > Math.PI * 0.22) B.angle += 0.014;
+        B.angle += da * 0.90; B.avel = 0;
+        // Döndükten sonra yerdeki tekeri zemine sabitle (sadece yukarı it)
+        if (fG2 && !rG2) {
+          const fw2 = wPos(1);
+          const g = (fw2.y + WR) - terrainAt(fw2.x).y;
+          if (g > 0) B.y -= g;
+        } else if (rG2 && !fG2) {
+          const rw2 = wPos(-1);
+          const g = (rw2.y + WR) - terrainAt(rw2.x).y;
+          if (g > 0) B.y -= g;
+        }
       } else {
-        B.avel += leanInput * 0.009; B.avel *= 0.4;
+        const steepLean2 = Math.max(0.35, 1 - Math.abs(tA2) * 0.55);
+        B.avel += leanInput * 0.0063 * steepLean2; B.avel *= 0.4;
       }
     } else {
-      B.avel += leanInput * 0.014;
+      B.avel += leanInput * 0.0098;
       B.avel = Math.max(-0.12, Math.min(0.12, B.avel));
       B.avel *= 0.90;
       flipAccum += B.avel;
@@ -351,10 +412,21 @@ function update() {
   if (rGnd || fGnd) flipAccum = 0;
 
   const groundBelowY = terrainAt(B.x).y;
-  if (B.y < groundBelowY - 480) { B.y = groundBelowY - 480; B.vy = Math.max(B.vy, 3); }
+  // Yakındaki en yüksek tepe + 200px = dinamik tavan
+  let nearPeakY = groundBelowY;
+  for (const pt of terrainPts) {
+    if (pt.x >= B.x - 400 && pt.x <= B.x + 400) nearPeakY = Math.min(nearPeakY, pt.y);
+  }
+  const ceilingY = nearPeakY - 200;
+  const softZone = 100;
+  if (B.y < ceilingY + softZone) {
+    const t = (ceilingY + softZone - B.y) / softZone;
+    if (B.vy < 0) B.vy += t * 0.55;
+  }
+  if (B.y < ceilingY) { B.y = ceilingY; B.vy = Math.max(B.vy, 0); }
 
-  if (keys['Space'] && onGnd && jumpCD <= 0 && nitro > 5) {
-    B.vy = Math.min(B.vy, -6.6); nitro -= 14; jumpCD = 38;
+  if (keys['Space'] && onGnd && jumpCD <= 0) {
+    B.vy = Math.max(B.vy - 6.6, -16); jumpCD = 38;
   }
   if (jumpCD > 0) jumpCD--;
 
@@ -374,11 +446,16 @@ function respawn() {
 
 function checkCrash() {
   const a = ((B.angle % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
-  if (a > Math.PI * 0.52 && a < Math.PI * 1.48) flipTimer++; else flipTimer = 0;
+  const _crw = wPos(-1), _cfw = wPos(1);
+  const crashGnd = (_crw.y + WR) - terrainAt(_crw.x).y > -8 || (_cfw.y + WR) - terrainAt(_cfw.x).y > -8;
+  if (a > Math.PI * 0.52 && a < Math.PI * 1.48 && !crashGnd) flipTimer++; else flipTimer = 0;
   const ca = Math.cos(B.angle), sa = Math.sin(B.angle);
   const waistX = B.x + ca * (-4) - sa * (-21);
   const waistY = B.y + sa * (-4) + ca * (-21);
-  if (waistY > terrainAt(waistX).y + 22 || flipTimer > 110 || B.y > canvas.height + 300) respawn();
+  const twY = terrainAt(waistX).y;
+  // Dik tırmanışta waistX ileriye (yukarıya) kayar — terrain orada çok yüksekteyse yanlış tetiklemesin
+  const waistCrash = twY > B.y - 25 && waistY > twY + 10;
+  if (waistCrash || flipTimer > 110 || B.y > canvas.height + 300) respawn();
 }
 
 function triggerWin() {
@@ -387,7 +464,53 @@ function triggerWin() {
   const m = Math.floor(elapsed / 60).toString().padStart(2, '0');
   const s = (elapsed % 60).toString().padStart(2, '0');
   document.getElementById('win-time').textContent = m + ':' + s;
+  const totalLabels = terrainPts.filter(p => p.date).length;
+  const colPct = totalLabels > 0 ? Math.round(collectedLabels.size / totalLabels * 100) : 0;
+  document.getElementById('win-stats').innerHTML =
+    'harita &nbsp;<span>%100</span> bitti<br>' +
+    'fiyat &nbsp;&nbsp;<span>%' + colPct + '</span> toplandı';
   document.getElementById('win-msg').style.display = 'flex';
+  launchConfetti();
+}
+
+function launchConfetti() {
+  const cc = document.getElementById('confetti-canvas');
+  cc.width = window.innerWidth; cc.height = window.innerHeight;
+  cc.style.display = 'block';
+  const cx = cc.getContext('2d');
+  const colors = ['#00ffcc','#ff4466','#ffcc00','#44aaff','#ff88ff','#ffffff'];
+  const pieces = Array.from({length: 120}, () => ({
+    x: Math.random() * cc.width,
+    y: Math.random() * -cc.height * 0.5 - 20,
+    vx: (Math.random() - 0.5) * 4,
+    vy: 2 + Math.random() * 4,
+    rot: Math.random() * Math.PI * 2,
+    rv: (Math.random() - 0.5) * 0.2,
+    w: 7 + Math.random() * 7,
+    h: 5 + Math.random() * 5,
+    color: colors[Math.floor(Math.random() * colors.length)],
+    alpha: 1
+  }));
+  let frame = 0;
+  function tick() {
+    cx.clearRect(0, 0, cc.width, cc.height);
+    let alive = false;
+    for (const p of pieces) {
+      p.x += p.vx; p.y += p.vy; p.rot += p.rv; p.vy += 0.08;
+      if (frame > 90) p.alpha = Math.max(0, p.alpha - 0.012);
+      if (p.alpha > 0 && p.y < cc.height + 20) alive = true;
+      cx.save();
+      cx.globalAlpha = p.alpha;
+      cx.translate(p.x, p.y); cx.rotate(p.rot);
+      cx.fillStyle = p.color;
+      cx.fillRect(-p.w/2, -p.h/2, p.w, p.h);
+      cx.restore();
+    }
+    frame++;
+    if (alive && won) requestAnimationFrame(tick);
+    else { cx.clearRect(0, 0, cc.width, cc.height); cc.style.display = 'none'; }
+  }
+  tick();
 }
 
 function restartGame() {
@@ -395,9 +518,10 @@ function restartGame() {
   Object.assign(B, { x: spx, y: terrainAt(spx).y - WR - WDY - 8, vx: 0, vy: 0, angle: 0, avel: 0, eng: 0, rSpin: 0, fSpin: 0 });
   camX = spx - canvas.width * 0.3;
   camY = terrainAt(spx).y - canvas.height * 0.55;
-  nitro = 100; crashed = false; won = false; flipTimer = 0; jumpCD = 0; flipAccum = 0; flipShowTimer = 0; startTime = Date.now();
+  nitro = 100; crashed = false; won = false; flipTimer = 0; jumpCD = 0; flipAccum = 0; flipShowTimer = 0; startTime = Date.now(); capeWorld = null; collectedLabels = new Set();
   document.getElementById('crash-msg').style.display = 'none';
   document.getElementById('win-msg').style.display = 'none';
+  const cc = document.getElementById('confetti-canvas'); cc.style.display = 'none';
 }
 window.restartGame = restartGame;
 
@@ -477,6 +601,10 @@ function drawTerrain() {
   // Önce etiketler (nokta, fiyat, tarih) — çizgi bunların üstüne çizilecek
   ctx.textAlign = 'center';
   const fmt = v => v.toFixed(6);
+  // Karakter sınırları (world space) — kesin değme kontrolü
+  const _rw = wPos(-1), _fw = wPos(1);
+  const charXmin = Math.min(_rw.x, _fw.x), charXmax = Math.max(_rw.x, _fw.x);
+  const charYmin = B.y - 50, charYmax = B.y + WR + 2;
   for (let i = 0; i < terrainPts.length; i++) {
     const p = terrainPts[i];
     if (!p.date || p.x < vl || p.x > vr) continue;
@@ -484,6 +612,15 @@ function drawTerrain() {
     const next = terrainPts[i + 1];
     const isMonthEnd = next && next.date && p.date.slice(0, 7) !== next.date.slice(0, 7);
 
+    // Değme kontrolü: x label çizgisi içinde, y label aralığı ile üst-üste geliyor mu
+    const hitX = charXmin <= p.x && p.x <= charXmax;
+    const hitY = charYmin <= p.y + 22 && charYmax >= p.y - 58;
+    if (hitX && hitY) collectedLabels.add(i);
+    const collected = collectedLabels.has(i);
+    const alpha = collected ? 0.22 : 1.0;
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
     ctx.setLineDash([2, 3]); ctx.strokeStyle = 'rgba(0,255,200,.35)'; ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(sx, sy - 4); ctx.lineTo(sx, sy - 44); ctx.stroke();
     ctx.setLineDash([]);
@@ -500,12 +637,11 @@ function drawTerrain() {
     ctx.fillText(priceStr, sx, sy - 47);
 
     ctx.font = '11px monospace';
-    const dw = ctx.measureText(p.date).width;
-    // Tarih etiketi çizginin altına, arka plan kutusu olmadan (çizgi hep görünür)
     ctx.shadowBlur = 4; ctx.shadowColor = '#000';
     ctx.fillStyle = 'rgba(255,255,255,.85)';
     ctx.fillText(p.date, sx, sy + 22);
     ctx.shadowBlur = 0;
+    ctx.restore();
   }
   ctx.textAlign = 'left';
 
@@ -516,7 +652,8 @@ function drawTerrain() {
   ctx.shadowBlur = 14; ctx.shadowColor = '#00ffcc'; ctx.stroke(); ctx.shadowBlur = 0;
 
   const startPt = terrainPts[0];
-  if (startPt.x >= vl && startPt.x <= vr) drawBarrier(startPt.x + 50, startPt.y, 'BAŞLANGIÇ', startPt.date);
+  const startDate = terrainPts[1]?.date ?? startPt.date;
+  if (startPt.x >= vl && startPt.x <= vr) drawBarrier(startPt.x + 50, startPt.y, 'BAŞLANGIÇ', startDate);
   const endPt = terrainPts[terrainPts.length - 1];
   if (endPt.x >= vl && endPt.x <= vr) drawFlag(endPt.x, endPt.y, endPt.date);
 }
@@ -536,6 +673,59 @@ function drawWheel(wx, wy, spin) {
   }
   ctx.beginPath(); ctx.arc(px, py, 3, 0, Math.PI * 2);
   ctx.fillStyle = '#aaa'; ctx.fill();
+}
+
+function updateCape() {
+  const ca = Math.cos(B.angle), sa = Math.sin(B.angle);
+  const lx = -4, ly = -36;
+  const ax = B.x + ca*lx - sa*ly, ay = B.y + sa*lx + ca*ly;
+  if (!capeWorld) {
+    capeWorld = Array.from({length: CAPE_N + 1}, () => ({x: ax, y: ay, vx: 0, vy: 0}));
+  }
+  capeWorld[0].x = ax; capeWorld[0].y = ay;
+  for (let i = 1; i <= CAPE_N; i++) {
+    const p = capeWorld[i];
+    const t = i / CAPE_N;
+    p.vy += 0.16;
+    p.vx -= B.vx * 0.11 * t;
+    p.vy -= B.vy * 0.07 * t;
+    p.vx *= 0.74; p.vy *= 0.74;
+    p.x += p.vx; p.y += p.vy;
+    const dx = p.x - capeWorld[i-1].x, dy = p.y - capeWorld[i-1].y;
+    const d = Math.hypot(dx, dy) || 1;
+    if (d > CAPE_SEG) { const f = CAPE_SEG / d; p.x = capeWorld[i-1].x + dx*f; p.y = capeWorld[i-1].y + dy*f; }
+  }
+}
+
+function drawCape() {
+  if (!capeWorld) return;
+  const pts = capeWorld.map(p => ({x: p.x - camX, y: p.y - camY}));
+  const widths = [3.5, 3, 2.5, 1.8, 1, 0.4];
+  const left = [], right = [];
+  for (let i = 0; i < pts.length; i++) {
+    const w = widths[i] ?? 0.8;
+    const ang = i < pts.length - 1
+      ? Math.atan2(pts[i+1].y - pts[i].y, pts[i+1].x - pts[i].x)
+      : Math.atan2(pts[i].y - pts[i-1].y, pts[i].x - pts[i-1].x);
+    const perp = ang + Math.PI / 2;
+    const cx = Math.cos(perp), cy = Math.sin(perp);
+    left.push({x: pts[i].x + cx*w, y: pts[i].y + cy*w});
+    right.push({x: pts[i].x - cx*w, y: pts[i].y - cy*w});
+  }
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(left[0].x, left[0].y);
+  for (let i = 1; i < left.length; i++) ctx.lineTo(left[i].x, left[i].y);
+  for (let i = right.length - 1; i >= 0; i--) ctx.lineTo(right[i].x, right[i].y);
+  ctx.closePath();
+  ctx.globalAlpha = 0.80;
+  ctx.fillStyle = '#7a1515';
+  ctx.fill();
+  ctx.globalAlpha = 0.40;
+  ctx.strokeStyle = '#cc2222';
+  ctx.lineWidth = 0.8;
+  ctx.stroke();
+  ctx.restore();
 }
 
 function drawBike() {
@@ -572,6 +762,8 @@ function drawBike() {
 
   drawWheel(rw.x, rw.y, B.rSpin);
   drawWheel(fw.x, fw.y, B.fSpin);
+
+  drawCape();
 
   const hips  = cl2s( -4, -21);
   const shldr = cl2s( -3, -38);
@@ -645,18 +837,23 @@ function drawFlip() {
 
 function updateHUD() {
   if (!fundData) return;
-  const ds = terrainPts[0];
-  const di = Math.max(0, Math.round((B.x - ds.x) / SPACING));
+  const di = Math.max(0, Math.round((B.x - terrainPts[0].x) / SPACING));
   const ap = fundData.prices.slice(-200);
-  const pct = Math.min(100, Math.max(0, di / ap.length * 100)).toFixed(0);
-  const cd = ap[Math.min(di, ap.length - 1)]?.[0] ?? '---';
-  document.getElementById('progress').textContent = cd + '  |  ' + pct + '%';
+  const cd = ap[Math.min(Math.max(0, di - 1), ap.length - 1)]?.[0] ?? '---';
+  const mapPct = Math.min(100, Math.max(0, (di / ap.length) * 100)).toFixed(0);
+  const totalLabels = terrainPts.filter(p => p.date).length;
+  const colPct = totalLabels > 0 ? Math.round(collectedLabels.size / totalLabels * 100) : 0;
+  document.getElementById('progress').innerHTML =
+    cd + '<br>' +
+    'harita &nbsp;%' + mapPct + '<br>' +
+    'fiyat &nbsp;&nbsp;%' + colPct;
   document.getElementById('nitro-fill').style.height = nitro + '%';
 }
 
 function loop() {
   update();
   if (!crashed && !won) { updateCamera(); checkCrash(); }
+  if (!crashed && !won) updateCape();
   drawBg(); drawTerrain(); drawBike(); drawFlip(); updateHUD();
   requestAnimationFrame(loop);
 }
@@ -669,6 +866,9 @@ function init() {
   document.title = 'FonRider - ' + fundCode;
   buildTerrain(fundData.prices.slice(-200));
   smoothSharpValleys();
+  // Başlangıç noktasından önce labelsiz bir kopya ekle — bisiklet ilk fiyatın önünden başlasın
+  const _fp = terrainPts[0];
+  terrainPts.unshift({ x: _fp.x - SPACING, y: _fp.y, price: _fp.price, date: null });
   const spx = terrainPts[0].x + 70;
   const spy = terrainAt(spx).y;
   Object.assign(B, { x: spx, y: spy - WR - WDY - 8, vx: 0, vy: 0, angle: 0, avel: 0, eng: 0, rSpin: 0, fSpin: 0 });

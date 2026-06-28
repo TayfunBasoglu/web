@@ -119,12 +119,21 @@ const ctx = canvas.getContext('2d');
 function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
 resize();
 window.addEventListener('resize', resize);
+window.addEventListener('orientationchange', () => setTimeout(() => {
+  resize();
+  if (fundData) {
+    buildTerrain(fundData.prices.slice(-200));
+    smoothSharpValleys();
+    const _fp = terrainPts[0];
+    terrainPts.unshift({ x: _fp.x - SPACING, y: _fp.y, price: _fp.price, date: null });
+  }
+}, 200));
 
 const isMobile = window.matchMedia('(pointer: coarse)').matches;
 const ZOOM = isMobile ? 0.60 : 1.0;
-const WR  = isMobile ? 12 : 17;
-const WB  = isMobile ? 18 : 26;
-const WDY = isMobile ?  5 :  7;
+const WR  = 17;
+const WB  = 26;
+const WDY =  7;
 const SPACING = 200;
 
 let terrainPts = [], fundData = null;
@@ -535,7 +544,10 @@ function updateCamera() {
 
 function cl2s(lx, ly) {
   const ca = Math.cos(B.angle), sa = Math.sin(B.angle);
-  return { x: (B.x - camX + ca * lx - sa * ly) * ZOOM, y: (B.y - camY + sa * lx + ca * ly) * ZOOM };
+  return {
+    x: (B.x - camX) * ZOOM + ca * lx - sa * ly,
+    y: (B.y - camY) * ZOOM + sa * lx + ca * ly
+  };
 }
 
 function drawBg() {
@@ -584,7 +596,7 @@ function drawFlag(wx, wy, date) {
 
 function drawTerrain() {
   if (terrainPts.length < 2) return;
-  const vl = camX - 200, vr = camX + canvas.width + 200;
+  const vl = camX - 200, vr = camX + canvas.width / ZOOM + 200;
   const vis = terrainPts.filter(p => p.x >= vl - SPACING && p.x <= vr + SPACING);
   if (vis.length < 2) return;
 
@@ -659,8 +671,7 @@ function drawTerrain() {
   if (endPt.x >= vl && endPt.x <= vr) drawFlag(endPt.x, endPt.y, endPt.date);
 }
 
-function drawWheel(wx, wy, spin) {
-  const px = (wx - camX) * ZOOM, py = (wy - camY) * ZOOM;
+function drawWheel(px, py, spin) {
   ctx.beginPath(); ctx.arc(px, py, WR, 0, Math.PI * 2);
   ctx.strokeStyle = '#333'; ctx.lineWidth = 4; ctx.stroke();
   ctx.strokeStyle = '#888'; ctx.lineWidth = 1.5; ctx.stroke();
@@ -668,7 +679,7 @@ function drawWheel(wx, wy, spin) {
   for (let i = 0; i < 6; i++) {
     const a = spin + i / 6 * Math.PI * 2;
     ctx.beginPath();
-    ctx.moveTo(px + Math.cos(a) * 3,       py + Math.sin(a) * 3);
+    ctx.moveTo(px + Math.cos(a) * 3,        py + Math.sin(a) * 3);
     ctx.lineTo(px + Math.cos(a) * (WR - 2), py + Math.sin(a) * (WR - 2));
     ctx.stroke();
   }
@@ -730,10 +741,7 @@ function drawCape() {
 }
 
 function drawBike() {
-  const rw = wPos(-1), fw = wPos(1);
-  const rpx = (rw.x - camX) * ZOOM, rpy = (rw.y - camY) * ZOOM;
-  const fpx = (fw.x - camX) * ZOOM, fpy = (fw.y - camY) * ZOOM;
-
+  const rws = cl2s(-WB, WDY), fws = cl2s(WB, WDY);
   const bb    = cl2s( 0,   6);
   const stTop = cl2s(-8, -15);
   const htTop = cl2s(17, -15);
@@ -741,28 +749,22 @@ function drawBike() {
   const seatL = cl2s(-13, -20);
   const seatR = cl2s(  3, -20);
 
-  const rAtt = cl2s(-WB, WDY), fAtt = cl2s(WB, WDY);
-  ctx.setLineDash([2, 3]); ctx.strokeStyle = 'rgba(100,100,100,.25)'; ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.moveTo(rAtt.x, rAtt.y); ctx.lineTo(rpx, rpy); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(fAtt.x, fAtt.y); ctx.lineTo(fpx, fpy); ctx.stroke();
-  ctx.setLineDash([]);
-
   ctx.lineCap = 'round'; ctx.lineJoin = 'round';
   ctx.strokeStyle = '#bbb'; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.moveTo(rpx, rpy);       ctx.lineTo(bb.x, bb.y);       ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(bb.x, bb.y);     ctx.lineTo(stTop.x, stTop.y); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(stTop.x,stTop.y);ctx.lineTo(htTop.x, htTop.y); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(rws.x, rws.y);    ctx.lineTo(bb.x, bb.y);       ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(bb.x, bb.y);      ctx.lineTo(stTop.x, stTop.y); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(stTop.x,stTop.y); ctx.lineTo(htTop.x, htTop.y); ctx.stroke();
   ctx.strokeStyle = '#777'; ctx.lineWidth = 1.8;
-  ctx.beginPath(); ctx.moveTo(htTop.x,htTop.y);ctx.lineTo(bb.x, bb.y);       ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(htTop.x,htTop.y); ctx.lineTo(bb.x, bb.y);       ctx.stroke();
   ctx.strokeStyle = '#bbb'; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.moveTo(htTop.x,htTop.y);ctx.lineTo(fpx, fpy);         ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(htTop.x,htTop.y); ctx.lineTo(fws.x, fws.y);     ctx.stroke();
   ctx.strokeStyle = '#666'; ctx.lineWidth = 1.5;
-  ctx.beginPath(); ctx.moveTo(htTop.x,htTop.y);ctx.lineTo(hbEnd.x, hbEnd.y); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(htTop.x,htTop.y); ctx.lineTo(hbEnd.x, hbEnd.y); ctx.stroke();
   ctx.strokeStyle = '#444'; ctx.lineWidth = 3;
-  ctx.beginPath(); ctx.moveTo(seatL.x,seatL.y);ctx.lineTo(seatR.x, seatR.y); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(seatL.x,seatL.y); ctx.lineTo(seatR.x, seatR.y); ctx.stroke();
 
-  drawWheel(rw.x, rw.y, B.rSpin);
-  drawWheel(fw.x, fw.y, B.fSpin);
+  drawWheel(rws.x, rws.y, B.rSpin);
+  drawWheel(fws.x, fws.y, B.fSpin);
 
   drawCape();
 

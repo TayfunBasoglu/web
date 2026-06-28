@@ -121,6 +121,7 @@ resize();
 window.addEventListener('resize', resize);
 
 const isMobile = window.matchMedia('(pointer: coarse)').matches;
+const ZOOM = isMobile ? 0.60 : 1.0;
 const WR  = isMobile ? 12 : 17;
 const WB  = isMobile ? 18 : 26;
 const WDY = isMobile ?  5 :  7;
@@ -455,7 +456,7 @@ function checkCrash() {
   const twY = terrainAt(waistX).y;
   // Dik tırmanışta waistX ileriye (yukarıya) kayar — terrain orada çok yüksekteyse yanlış tetiklemesin
   const waistCrash = twY > B.y - 25 && waistY > twY + 10;
-  if (waistCrash || flipTimer > 110 || B.y > canvas.height + 300) respawn();
+  if (waistCrash || flipTimer > 110 || B.y > canvas.height / ZOOM + 300) respawn();
 }
 
 function triggerWin() {
@@ -528,8 +529,8 @@ window.restartGame = restartGame;
 function updateCamera() {
   const camOffsetX = isMobile ? 0.14 : 0.30;
   const camOffsetY = isMobile ? 0.58 : 0.68;
-  camX += (B.x - canvas.width  * camOffsetX - camX) * 0.09;
-  camY += (B.y - canvas.height * camOffsetY  - camY) * 0.09;
+  camX += (B.x - (canvas.width  * camOffsetX / ZOOM) - camX) * 0.09;
+  camY += (B.y - (canvas.height * camOffsetY  / ZOOM) - camY) * 0.09;
 }
 
 function cl2s(lx, ly) {
@@ -854,7 +855,11 @@ function loop() {
   update();
   if (!crashed && !won) { updateCamera(); checkCrash(); }
   if (!crashed && !won) updateCape();
-  drawBg(); drawTerrain(); drawBike(); drawFlip(); updateHUD();
+  drawBg();
+  ctx.save(); ctx.scale(ZOOM, ZOOM);
+  drawTerrain(); drawBike();
+  ctx.restore();
+  drawFlip(); updateHUD();
   requestAnimationFrame(loop);
 }
 

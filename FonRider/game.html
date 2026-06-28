@@ -886,8 +886,8 @@ function init() {
   const spx = terrainPts[0].x + 70;
   const spy = terrainAt(spx).y;
   Object.assign(B, { x: spx, y: spy - WR - WDY - 8, vx: 0, vy: 0, angle: 0, avel: 0, eng: 0, rSpin: 0, fSpin: 0 });
-  camX = spx - canvas.width * 0.3;
-  camY = spy - canvas.height * 0.55;
+  camX = spx - window.innerWidth * 0.3;
+  camY = spy - window.innerHeight * 0.55;
   startTime = Date.now();
   requestAnimationFrame(loop);
 }

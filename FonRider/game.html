@@ -538,16 +538,13 @@ window.restartGame = restartGame;
 function updateCamera() {
   const camOffsetX = isMobile ? 0.14 : 0.30;
   const camOffsetY = isMobile ? 0.58 : 0.68;
-  camX += (B.x - (canvas.width  * camOffsetX / ZOOM) - camX) * 0.09;
-  camY += (B.y - (canvas.height * camOffsetY  / ZOOM) - camY) * 0.09;
+  camX += (B.x - canvas.width  * camOffsetX / ZOOM - camX) * 0.09;
+  camY += (B.y - canvas.height * camOffsetY  / ZOOM - camY) * 0.09;
 }
 
 function cl2s(lx, ly) {
   const ca = Math.cos(B.angle), sa = Math.sin(B.angle);
-  return {
-    x: (B.x - camX) * ZOOM + ca * lx - sa * ly,
-    y: (B.y - camY) * ZOOM + sa * lx + ca * ly
-  };
+  return { x: B.x - camX + ca * lx - sa * ly, y: B.y - camY + sa * lx + ca * ly };
 }
 
 function drawBg() {
@@ -561,7 +558,7 @@ function drawBg() {
 }
 
 function drawBarrier(wx, wy, label, date) {
-  const sx = (wx - camX) * ZOOM, sy = (wy - camY) * ZOOM, H = 120;
+  const sx = wx - camX, sy = wy - camY, H = 120;
   ctx.strokeStyle = '#555'; ctx.lineWidth = 4;
   ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(sx, sy - H); ctx.stroke();
   for (let i = 0; i < 5; i++) {
@@ -577,7 +574,7 @@ function drawBarrier(wx, wy, label, date) {
 }
 
 function drawFlag(wx, wy, date) {
-  const sx = (wx - camX) * ZOOM, sy = (wy - camY) * ZOOM, poleH = 70;
+  const sx = wx - camX, sy = wy - camY, poleH = 70;
   ctx.strokeStyle = '#888'; ctx.lineWidth = 2;
   ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(sx, sy - poleH); ctx.stroke();
   const t = Date.now() / 400;
@@ -601,10 +598,10 @@ function drawTerrain() {
   if (vis.length < 2) return;
 
   ctx.beginPath();
-  ctx.moveTo((vis[0].x - camX) * ZOOM, (vis[0].y - camY) * ZOOM);
-  vis.forEach(p => ctx.lineTo((p.x - camX) * ZOOM, (p.y - camY) * ZOOM));
-  ctx.lineTo((vis[vis.length-1].x - camX) * ZOOM, canvas.height + 300);
-  ctx.lineTo((vis[0].x - camX) * ZOOM, canvas.height + 300);
+  ctx.moveTo(vis[0].x - camX, vis[0].y - camY);
+  vis.forEach(p => ctx.lineTo(p.x - camX, p.y - camY));
+  ctx.lineTo(vis[vis.length-1].x - camX, canvas.height / ZOOM + 300);
+  ctx.lineTo(vis[0].x - camX, canvas.height / ZOOM + 300);
   ctx.closePath();
   const gr = ctx.createLinearGradient(0, 0, 0, canvas.height);
   gr.addColorStop(0, 'rgba(0,255,180,0.06)');
@@ -621,7 +618,7 @@ function drawTerrain() {
   for (let i = 0; i < terrainPts.length; i++) {
     const p = terrainPts[i];
     if (!p.date || p.x < vl || p.x > vr) continue;
-    const sx = (p.x - camX) * ZOOM, sy = (p.y - camY) * ZOOM;
+    const sx = p.x - camX, sy = p.y - camY;
     const next = terrainPts[i + 1];
     const isMonthEnd = next && next.date && p.date.slice(0, 7) !== next.date.slice(0, 7);
 
@@ -660,7 +657,7 @@ function drawTerrain() {
 
   // Çizgi en son — etiket kutularının üstüne çizilir, hep net görünür
   ctx.beginPath();
-  vis.forEach((p, i) => i === 0 ? ctx.moveTo((p.x - camX)*ZOOM, (p.y - camY)*ZOOM) : ctx.lineTo((p.x - camX)*ZOOM, (p.y - camY)*ZOOM));
+  vis.forEach((p, i) => i === 0 ? ctx.moveTo(p.x - camX, p.y - camY) : ctx.lineTo(p.x - camX, p.y - camY));
   ctx.strokeStyle = '#00ffcc'; ctx.lineWidth = 2.5;
   ctx.shadowBlur = 14; ctx.shadowColor = '#00ffcc'; ctx.stroke(); ctx.shadowBlur = 0;
 
@@ -671,7 +668,8 @@ function drawTerrain() {
   if (endPt.x >= vl && endPt.x <= vr) drawFlag(endPt.x, endPt.y, endPt.date);
 }
 
-function drawWheel(px, py, spin) {
+function drawWheel(wx, wy, spin) {
+  const px = wx - camX, py = wy - camY;
   ctx.beginPath(); ctx.arc(px, py, WR, 0, Math.PI * 2);
   ctx.strokeStyle = '#333'; ctx.lineWidth = 4; ctx.stroke();
   ctx.strokeStyle = '#888'; ctx.lineWidth = 1.5; ctx.stroke();
@@ -711,7 +709,7 @@ function updateCape() {
 
 function drawCape() {
   if (!capeWorld) return;
-  const pts = capeWorld.map(p => ({x: (p.x - camX) * ZOOM, y: (p.y - camY) * ZOOM}));
+  const pts = capeWorld.map(p => ({x: p.x - camX, y: p.y - camY}));
   const widths = [3.5, 3, 2.5, 1.8, 1, 0.4];
   const left = [], right = [];
   for (let i = 0; i < pts.length; i++) {
@@ -741,7 +739,10 @@ function drawCape() {
 }
 
 function drawBike() {
-  const rws = cl2s(-WB, WDY), fws = cl2s(WB, WDY);
+  const rw = wPos(-1), fw = wPos(1);
+  const rpx = rw.x - camX, rpy = rw.y - camY;
+  const fpx = fw.x - camX, fpy = fw.y - camY;
+
   const bb    = cl2s( 0,   6);
   const stTop = cl2s(-8, -15);
   const htTop = cl2s(17, -15);
@@ -751,20 +752,20 @@ function drawBike() {
 
   ctx.lineCap = 'round'; ctx.lineJoin = 'round';
   ctx.strokeStyle = '#bbb'; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.moveTo(rws.x, rws.y);    ctx.lineTo(bb.x, bb.y);       ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(rpx, rpy);        ctx.lineTo(bb.x, bb.y);       ctx.stroke();
   ctx.beginPath(); ctx.moveTo(bb.x, bb.y);      ctx.lineTo(stTop.x, stTop.y); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(stTop.x,stTop.y); ctx.lineTo(htTop.x, htTop.y); ctx.stroke();
   ctx.strokeStyle = '#777'; ctx.lineWidth = 1.8;
   ctx.beginPath(); ctx.moveTo(htTop.x,htTop.y); ctx.lineTo(bb.x, bb.y);       ctx.stroke();
   ctx.strokeStyle = '#bbb'; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.moveTo(htTop.x,htTop.y); ctx.lineTo(fws.x, fws.y);     ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(htTop.x,htTop.y); ctx.lineTo(fpx, fpy);         ctx.stroke();
   ctx.strokeStyle = '#666'; ctx.lineWidth = 1.5;
   ctx.beginPath(); ctx.moveTo(htTop.x,htTop.y); ctx.lineTo(hbEnd.x, hbEnd.y); ctx.stroke();
   ctx.strokeStyle = '#444'; ctx.lineWidth = 3;
   ctx.beginPath(); ctx.moveTo(seatL.x,seatL.y); ctx.lineTo(seatR.x, seatR.y); ctx.stroke();
 
-  drawWheel(rws.x, rws.y, B.rSpin);
-  drawWheel(fws.x, fws.y, B.fSpin);
+  drawWheel(rw.x, rw.y, B.rSpin);
+  drawWheel(fw.x, fw.y, B.fSpin);
 
   drawCape();
 
@@ -857,7 +858,11 @@ function loop() {
   update();
   if (!crashed && !won) { updateCamera(); checkCrash(); }
   if (!crashed && !won) updateCape();
-  drawBg(); drawTerrain(); drawBike(); drawFlip(); updateHUD();
+  drawBg();
+  ctx.save(); ctx.scale(ZOOM, ZOOM);
+  drawTerrain(); drawBike();
+  ctx.restore();
+  drawFlip(); updateHUD();
   requestAnimationFrame(loop);
 }
 

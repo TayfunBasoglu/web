@@ -116,7 +116,13 @@
 
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
-function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+const dpr = window.devicePixelRatio || 1;
+function resize() {
+  canvas.width  = window.innerWidth  * dpr;
+  canvas.height = window.innerHeight * dpr;
+  canvas.style.width  = window.innerWidth  + 'px';
+  canvas.style.height = window.innerHeight + 'px';
+}
 resize();
 window.addEventListener('resize', resize);
 window.addEventListener('orientationchange', () => setTimeout(() => {
@@ -194,7 +200,7 @@ function smoothSharpValleys() {
 
 function buildTerrain(prices) {
   terrainPts = [];
-  const H = canvas.height, TOP = H * 0.08, BOT = H * 0.96;
+  const H = window.innerHeight, TOP = H * 0.08, BOT = H * 0.96;
   const vals = prices.map(p => p[1]);
   const baseline = vals.map((_, i) => {
     const s = vals.slice(Math.max(0, i - 1), Math.min(vals.length, i + 2));
@@ -465,7 +471,7 @@ function checkCrash() {
   const twY = terrainAt(waistX).y;
   // Dik tırmanışta waistX ileriye (yukarıya) kayar — terrain orada çok yüksekteyse yanlış tetiklemesin
   const waistCrash = twY > B.y - 25 && waistY > twY + 10;
-  if (waistCrash || flipTimer > 110 || B.y > canvas.height / ZOOM + 300) respawn();
+  if (waistCrash || flipTimer > 110 || B.y > window.innerHeight / ZOOM + 300) respawn();
 }
 
 function triggerWin() {
@@ -526,8 +532,8 @@ function launchConfetti() {
 function restartGame() {
   const spx = terrainPts[0].x + 70;
   Object.assign(B, { x: spx, y: terrainAt(spx).y - WR - WDY - 8, vx: 0, vy: 0, angle: 0, avel: 0, eng: 0, rSpin: 0, fSpin: 0 });
-  camX = spx - canvas.width * 0.3;
-  camY = terrainAt(spx).y - canvas.height * 0.55;
+  camX = spx - window.innerWidth * 0.3;
+  camY = terrainAt(spx).y - window.innerHeight * 0.55;
   nitro = 100; crashed = false; won = false; flipTimer = 0; jumpCD = 0; flipAccum = 0; flipShowTimer = 0; startTime = Date.now(); capeWorld = null; collectedLabels = new Set();
   document.getElementById('crash-msg').style.display = 'none';
   document.getElementById('win-msg').style.display = 'none';
@@ -538,8 +544,8 @@ window.restartGame = restartGame;
 function updateCamera() {
   const camOffsetX = isMobile ? 0.14 : 0.30;
   const camOffsetY = isMobile ? 0.58 : 0.68;
-  camX += (B.x - canvas.width  * camOffsetX / ZOOM - camX) * 0.09;
-  camY += (B.y - canvas.height * camOffsetY  / ZOOM - camY) * 0.09;
+  camX += (B.x - window.innerWidth  * camOffsetX / ZOOM - camX) * 0.09;
+  camY += (B.y - window.innerHeight * camOffsetY  / ZOOM - camY) * 0.09;
 }
 
 function cl2s(lx, ly) {
@@ -593,17 +599,17 @@ function drawFlag(wx, wy, date) {
 
 function drawTerrain() {
   if (terrainPts.length < 2) return;
-  const vl = camX - 200, vr = camX + canvas.width / ZOOM + 200;
+  const vl = camX - 200, vr = camX + window.innerWidth / ZOOM + 200;
   const vis = terrainPts.filter(p => p.x >= vl - SPACING && p.x <= vr + SPACING);
   if (vis.length < 2) return;
 
   ctx.beginPath();
   ctx.moveTo(vis[0].x - camX, vis[0].y - camY);
   vis.forEach(p => ctx.lineTo(p.x - camX, p.y - camY));
-  ctx.lineTo(vis[vis.length-1].x - camX, canvas.height / ZOOM + 300);
-  ctx.lineTo(vis[0].x - camX, canvas.height / ZOOM + 300);
+  ctx.lineTo(vis[vis.length-1].x - camX, window.innerHeight / ZOOM + 300);
+  ctx.lineTo(vis[0].x - camX, window.innerHeight / ZOOM + 300);
   ctx.closePath();
-  const gr = ctx.createLinearGradient(0, 0, 0, canvas.height);
+  const gr = ctx.createLinearGradient(0, 0, 0, window.innerHeight / ZOOM);
   gr.addColorStop(0, 'rgba(0,255,180,0.06)');
   gr.addColorStop(1, 'rgba(0,45,38,0.22)');
   ctx.fillStyle = gr; ctx.fill();
@@ -798,7 +804,7 @@ function drawFlip() {
   flipShowTimer--;
   ctx.save();
   ctx.globalAlpha = alpha;
-  ctx.translate(canvas.width / 2, canvas.height * 0.38);
+  ctx.translate(window.innerWidth / 2, window.innerHeight * 0.38);
   ctx.scale(scale, scale);
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
@@ -822,7 +828,7 @@ function drawFlip() {
   flipShowTimer--;
   ctx.save();
   ctx.globalAlpha = alpha;
-  ctx.translate(canvas.width / 2, canvas.height * 0.38);
+  ctx.translate(window.innerWidth / 2, window.innerHeight * 0.38);
   ctx.scale(scale, scale);
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
@@ -859,7 +865,7 @@ function loop() {
   if (!crashed && !won) { updateCamera(); checkCrash(); }
   if (!crashed && !won) updateCape();
   drawBg();
-  ctx.save(); ctx.scale(ZOOM, ZOOM);
+  ctx.save(); ctx.scale(dpr * ZOOM, dpr * ZOOM);
   drawTerrain(); drawBike();
   ctx.restore();
   drawFlip(); updateHUD();

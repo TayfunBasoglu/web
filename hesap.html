@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kafadan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --accent:#8b7cff;
+    --accent2:#22d3ee;
+    --gold:#f5d76e;
+    --green:#34d399;
+    --green-glow:rgba(52,211,153,.55);
+    --red:#fb7185;
+    --red-glow:rgba(251,113,133,.5);
+    --ink:#eef1ff;
+    --muted:#9aa3c7;
+    --glass:rgba(255,255,255,.055);
+    --glass-strong:rgba(255,255,255,.09);
+    --stroke:rgba(255,255,255,.14);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:'Sora',system-ui,-apple-system,sans-serif;
+    min-height:100dvh;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:24px;
+    color:var(--ink);
+    background:#070912;
+    overflow:hidden;
+    position:relative;
+  }
+  /* Aurora arka plan */
+  .aurora{position:fixed;inset:0;z-index:0;filter:blur(70px);opacity:.9}
+  .aurora span{position:absolute;border-radius:50%;mix-blend-mode:screen;animation:float 18s ease-in-out infinite}
+  .aurora .a{width:46vw;height:46vw;left:-8vw;top:-10vw;background:radial-gradient(circle,#5b46ff,transparent 62%)}
+  .aurora .b{width:42vw;height:42vw;right:-6vw;top:6vw;background:radial-gradient(circle,#14b8c8,transparent 62%);animation-delay:-4s}
+  .aurora .c{width:40vw;height:40vw;left:22vw;bottom:-16vw;background:radial-gradient(circle,#c084fc,transparent 62%);animation-delay:-9s}
+  @keyframes float{0%,100%{transform:translate(0,0) scale(1)}33%{transform:translate(4vw,3vh) scale(1.08)}66%{transform:translate(-3vw,-2vh) scale(.95)}}
+  /* İnce grain dokusu */
+  body::after{content:"";position:fixed;inset:0;z-index:1;pointer-events:none;opacity:.05;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");}
+
+  .card{
+    position:relative;
+    z-index:2;
+    width:100%;
+    max-width:540px;
+    background:linear-gradient(160deg,var(--glass-strong),var(--glass));
+    border:1px solid var(--stroke);
+    border-radius:28px;
+    padding:40px 36px 34px;
+    text-align:center;
+    backdrop-filter:blur(24px) saturate(140%);
+    -webkit-backdrop-filter:blur(24px) saturate(140%);
+    box-shadow:
+      0 1px 0 rgba(255,255,255,.25) inset,
+      0 40px 80px -30px rgba(0,0,0,.8),
+      0 0 0 1px rgba(255,255,255,.03);
+    animation:enter .5s cubic-bezier(.2,.8,.2,1);
+  }
+  @keyframes enter{from{opacity:0;transform:translateY(18px) scale(.97)}to{opacity:1;transform:none}}
+
+  .top{display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:26px}
+  .op-badge{
+    display:inline-flex;align-items:center;gap:9px;
+    font-size:12.5px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;
+    color:var(--ink);
+    padding:9px 18px;border-radius:999px;
+    background:linear-gradient(120deg,rgba(139,124,255,.28),rgba(34,211,238,.22));
+    border:1px solid var(--stroke);
+    box-shadow:0 6px 20px -10px rgba(139,124,255,.9);
+  }
+  .op-badge .dot{width:8px;height:8px;border-radius:50%;background:var(--gold);box-shadow:0 0 12px var(--gold)}
+
+  .question{
+    font-family:'Space Grotesk','Sora',sans-serif;
+    font-size:clamp(40px,11vw,64px);
+    font-weight:700;
+    line-height:1.05;
+    letter-spacing:.01em;
+    margin-bottom:34px;
+    word-break:break-word;
+    background:linear-gradient(180deg,#ffffff, #c6ccf5);
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+    text-shadow:0 2px 30px rgba(139,124,255,.25);
+  }
+  .question .q{color:var(--accent2);-webkit-text-fill-color:var(--accent2)}
+
+  .options{display:grid;grid-template-columns:1fr 1fr;gap:15px}
+  .opt{
+    position:relative;overflow:hidden;
+    font-family:'Space Grotesk','Sora',sans-serif;
+    font-size:27px;font-weight:600;
+    padding:22px 12px;
+    border:1px solid var(--stroke);
+    border-radius:18px;
+    background:var(--glass);
+    color:var(--ink);
+    cursor:pointer;
+    transition:transform .16s cubic-bezier(.2,.8,.2,1),border-color .2s,background .2s,box-shadow .25s;
+    user-select:none;
+  }
+  .opt::before{content:"";position:absolute;inset:0;border-radius:inherit;padding:1px;
+    background:linear-gradient(140deg,rgba(255,255,255,.4),transparent 45%);
+    -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);
+    -webkit-mask-composite:xor;mask-composite:exclude;opacity:.5;pointer-events:none}
+  .opt:hover:not(.disabled){
+    transform:translateY(-3px);
+    border-color:rgba(139,124,255,.7);
+    background:var(--glass-strong);
+    box-shadow:0 14px 30px -12px rgba(139,124,255,.75),0 0 0 1px rgba(139,124,255,.35) inset;
+  }
+  .opt:active:not(.disabled){transform:translateY(-1px) scale(.99)}
+  .opt.disabled{cursor:default}
+  .opt.correct{
+    background:linear-gradient(140deg,rgba(52,211,153,.28),rgba(52,211,153,.1));
+    border-color:var(--green);color:#eafff6;
+    box-shadow:0 0 34px -6px var(--green-glow),0 0 0 1px rgba(52,211,153,.4) inset;
+    animation:pulseG .6s ease;
+  }
+  .opt.wrong{
+    background:linear-gradient(140deg,rgba(251,113,133,.26),rgba(251,113,133,.1));
+    border-color:var(--red);color:#fff0f2;
+    box-shadow:0 0 30px -6px var(--red-glow),0 0 0 1px rgba(251,113,133,.4) inset;
+    animation:shake .42s ease;
+  }
+  @keyframes pulseG{0%{box-shadow:0 0 0 0 var(--green-glow)}100%{box-shadow:0 0 34px -6px var(--green-glow),0 0 0 1px rgba(52,211,153,.4) inset}}
+  @keyframes shake{10%,90%{transform:translateX(-2px)}20%,80%{transform:translateX(4px)}30%,50%,70%{transform:translateX(-7px)}40%,60%{transform:translateX(7px)}}
+
+  .status{min-height:30px;margin-top:28px;font-size:20px;font-weight:700;letter-spacing:.01em;opacity:0;transform:translateY(6px);transition:.25s}
+  .status.show{opacity:1;transform:none}
+  .status.ok{color:var(--green);text-shadow:0 0 20px var(--green-glow)}
+  .status.no{color:var(--red);text-shadow:0 0 20px var(--red-glow)}
+
+  .continue{
+    margin-top:22px;
+    font-family:'Sora',sans-serif;font-size:17px;font-weight:700;letter-spacing:.02em;
+    color:#0b0d16;
+    background:linear-gradient(120deg,var(--gold),#ffe9a8);
+    border:none;border-radius:15px;padding:15px 38px;cursor:pointer;
+    transition:transform .16s cubic-bezier(.2,.8,.2,1),box-shadow .25s,filter .2s;
+    box-shadow:0 16px 34px -14px rgba(245,215,110,.9);
+  }
+  .continue:hover{transform:translateY(-3px);filter:brightness(1.04);box-shadow:0 22px 44px -16px rgba(245,215,110,1)}
+  .continue:active{transform:translateY(-1px)}
+  .footer{margin-top:26px;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+  .hidden{display:none}
+</style>
+</head>
+<body>
+  <div class="aurora"><span class="a"></span><span class="b"></span><span class="c"></span></div>
+
+  <div class="card">
+    <div class="top"><span class="op-badge"><span class="dot"></span><span id="opBadge">Toplama</span></span></div>
+    <div class="question" id="question">— + — <span class="q">= ?</span></div>
+    <div class="options" id="options"></div>
+    <div class="status" id="status"></div>
+    <button class="continue hidden" id="continueBtn">Devam →</button>
+  </div>
+
+<script>
+(function(){
+  const opBadge   = document.getElementById('opBadge');
+  const questionEl= document.getElementById('question');
+  const optionsEl = document.getElementById('options');
+  const statusEl  = document.getElementById('status');
+  const contBtn   = document.getElementById('continueBtn');
+
+  let answered = false;
+  let autoTimer = null;
+
+  const rint = (min,max)=>Math.floor(Math.random()*(max-min+1))+min;
+  const pick = arr=>arr[rint(0,arr.length-1)];
+
+  function digitNum(digits){
+    if(digits===1) return rint(1,9);
+    if(digits===2) return rint(10,99);
+    return rint(100,999);
+  }
+
+  // Her sayı için AYRI atış: tek %50, iki %30, üç %20 (maxDigits ile sınırlı)
+  function pickDigits(maxDigits){
+    const r = Math.random()*100;
+    let d = (r < 50) ? 1 : (r < 80) ? 2 : 3;
+    if(d > maxDigits) d = maxDigits;
+    return d;
+  }
+  const genNum = maxDigits => digitNum(pickDigits(maxDigits));
+
+  function makeQuestion(){
+    const type = pick(['+','-','×','÷']);
+    let a,b,answer,text;
+
+    if(type==='+'){
+      a = genNum(3); b = genNum(3);
+      answer = a+b; text = a+' + '+b;
+    } else if(type==='-'){
+      a = genNum(3); b = genNum(3);
+      if(b>a){ const t=a; a=b; b=t; }
+      answer = a-b; text = a+' − '+b;
+    } else if(type==='×'){
+      a = genNum(2); b = genNum(2);
+      answer = a*b; text = a+' × '+b;
+    } else {
+      b = genNum(2);
+      const q = genNum(2);
+      a = b*q; answer = q; text = a+' ÷ '+b;
+    }
+
+    const badge = {'+':'Toplama','-':'Çıkarma','×':'Çarpma','÷':'Bölme'}[type];
+    return {text, answer, badge};
+  }
+
+  function makeOptions(answer){
+    const opts = new Set([answer]);
+    const spread = Math.max(2, Math.round(Math.abs(answer)*0.08));
+    let guard=0;
+    while(opts.size<4 && guard<200){
+      guard++;
+      let delta = rint(1, spread+3) * (Math.random()<.5?-1:1);
+      if(Math.random()<.4) delta = rint(1,4)*(Math.random()<.5?-1:1);
+      const cand = answer + delta;
+      if(cand>0 && cand!==answer) opts.add(cand);
+    }
+    let f=1; while(opts.size<4){ opts.add(answer+ (++f)); }
+    const arr=[...opts];
+    for(let i=arr.length-1;i>0;i--){const j=rint(0,i);[arr[i],arr[j]]=[arr[j],arr[i]];}
+    return arr;
+  }
+
+  function render(){
+    clearTimeout(autoTimer);
+    answered=false;
+    statusEl.textContent=''; statusEl.className='status';
+    contBtn.classList.add('hidden');
+
+    const q = makeQuestion();
+    opBadge.textContent = q.badge;
+    questionEl.innerHTML = q.text + ' <span class="q">= ?</span>';
+
+    const opts = makeOptions(q.answer);
+    optionsEl.innerHTML='';
+    opts.forEach((val,i)=>{
+      const btn=document.createElement('div');
+      btn.className='opt';
+      btn.textContent=val;
+      btn.style.animation=`enter .4s ${i*0.05}s both`;
+      btn.addEventListener('click',()=>choose(btn,val,q.answer,opts));
+      optionsEl.appendChild(btn);
+    });
+  }
+
+  function choose(btn,val,answer,opts){
+    if(answered) return;
+    answered=true;
+    const buttons=[...optionsEl.children];
+    buttons.forEach(b=>b.classList.add('disabled'));
+
+    if(val===answer){
+      btn.classList.add('correct');
+      statusEl.textContent='Doğru!';
+      statusEl.className='status ok show';
+      autoTimer=setTimeout(render,2000);
+    } else {
+      btn.classList.add('wrong');
+      const idx=opts.indexOf(answer);
+      if(buttons[idx]) buttons[idx].classList.add('correct');
+      statusEl.textContent='Yanlış — doğrusu: '+answer;
+      statusEl.className='status no show';
+      contBtn.classList.remove('hidden');
+    }
+  }
+
+  contBtn.addEventListener('click',render);
+  render();
+})();
+</script>
+</body>
+</html>

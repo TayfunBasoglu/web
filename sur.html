@@ -29,8 +29,8 @@ button{font-family:inherit;color:#fff;cursor:pointer;outline:none}
 
 .pad{border:2px solid rgba(255,255,255,.4);background:rgba(15,18,28,.35);font-weight:900;display:flex;align-items:center;justify-content:center;touch-action:none;letter-spacing:1px;transition:transform .05s}
 .pad.on{background:rgba(255,255,255,.35);transform:scale(.95)}
-#ctlL{position:fixed;left:calc(10px + env(safe-area-inset-left));bottom:calc(10px + env(safe-area-inset-bottom));width:clamp(210px,40vw,370px);height:clamp(100px,38vh,185px);display:flex;border-radius:26px;overflow:hidden;border:2px solid rgba(255,255,255,.4);background:rgba(15,18,28,.3);touch-action:none}
-#ctlL .half{flex:1;display:flex;align-items:center;justify-content:center;font-size:clamp(26px,8vh,46px);font-weight:900;color:#fff;transition:background .05s}
+#ctlL{position:fixed;left:calc(10px + env(safe-area-inset-left));bottom:calc(10px + env(safe-area-inset-bottom));width:clamp(170px,28vw,280px);height:clamp(78px,26vh,135px);display:flex;border-radius:22px;overflow:hidden;border:2px solid rgba(255,255,255,.4);background:rgba(15,18,28,.3);touch-action:none}
+#ctlL .half{flex:1;display:flex;align-items:center;justify-content:center;font-size:clamp(22px,6.5vh,38px);font-weight:900;color:#fff;transition:background .05s}
 #ctlL .half+.half{border-left:1px solid rgba(255,255,255,.25)}
 #ctlL .half.on{background:rgba(255,255,255,.32)}
 #ctlR{position:fixed;right:calc(16px + env(safe-area-inset-right));bottom:calc(16px + env(safe-area-inset-bottom));display:flex;gap:14px;align-items:flex-end}
@@ -138,7 +138,7 @@ button{font-family:inherit;color:#fff;cursor:pointer;outline:none}
    gears   : vites geçiş hızları (null = vitessiz, o zaman gearLabel gösterilir, rpmRef ile devir)
              rpmMax: göstergede yazan en yüksek devir (bin, varsayılan 14; dizeller için 2.8)
    snd     : motor sesi. o1/o2 dalga tipi, mul: 2. osilatör oranı, base+range*devir = frekans (Hz)
-             lp/lpR: filtre, vol: motor sesi (0 = sessiz)
+             lp/lpR: filtre, vol: motor sesi (0 = sessiz), am/amr: genlik dalgalanması derinliği ve frekans oranı (V8 "lop lop")
    dash    : gösterge renkleri. style: 'digital' veya 'analog'
    build   : kokpit modelini kurar (kamera koordinatında: -z ileri, -y aşağı). K yardımcılarını kullan.
              { root, steer, steerAxis, steerK } döndürür (steer = direksiyon/gidon nesnesi)
@@ -153,13 +153,21 @@ const VEHICLES=[
    dash:{style:'digital',bg:'#04060a',frame:'#26303c',num:'#ffffff',unit:'#9fb3c4',bars:['#4fe3ff','#ffb020','#ff3344'],gearBg:'#0d2617',gearFg:'#57ff8a'},
    build:()=>sportBike({body:0x141518,dark:0x16171b,yoke:0x2a2b31,fork:0xc9a04e,accent:0x3fb54a,grip:0x0e0e10,barEnd:0xb4b4bc,house:0x0b0b0e,glass:0x2e3448})},
 
-  {id:'car',name:'Araba',emoji:'🚗',desc:'Rahat ve dengeli',
-   phys:{A:42,K:120,p:1.8,min:0.6,brake:85,drag:1,steer:0.85},
-   cam:{y:1.15,fov:66,lean:0,bob:0,vib:0.5},hit:{w:0.92,front:2.4,back:2.1},
-   gears:[50,90,130,170,215],
-   snd:{o1:'sawtooth',o2:'square',mul:0.5,g2:0.35,base:30,range:110,lp:350,lpR:800,vol:0.14},
-   dash:{style:'digital',bg:'#0a0d14',frame:'#333a48',num:'#e8f1ff',unit:'#8aa0b8',bars:['#5aa9ff','#ffd04a','#ff5050'],gearBg:'#11182a',gearFg:'#7fb8ff'},
-   build:()=>carCockpit(0xb3122a)},
+  {id:'impala',name:"Kara Impala '67",emoji:'🖤',desc:'V8 gürlemesi, krom ve siyah',
+   phys:{A:42,K:120,p:1.8,min:0.6,brake:80,drag:0.9,steer:0.82},
+   cam:{y:1.12,fov:66,lean:0,bob:0,vib:0.6},hit:{w:1.0,front:2.82,back:2.78},
+   gears:[55,100,150,210],
+   snd:{o1:'sawtooth',o2:'square',mul:0.5,g2:0.55,base:24,range:80,lp:240,lpR:620,vol:0.2,am:0.55,amr:0.25},
+   dash:{style:'analog',bg:'#0c0c0e',rim:'#e6e6ea',face:'#f3ead2',tick:'#222222',needle:'#c41e1e',num:'#222222'},
+   build:()=>impalaCockpit()},
+
+  {id:'lambo',name:'Süper Spor',emoji:'🏎️',desc:'V12, uçarcasına hızlı',
+   phys:{A:62,K:150,p:1.8,min:0.9,brake:110,drag:1,steer:1.05},
+   cam:{y:0.98,fov:68,lean:0,bob:0,vib:0.7},hit:{w:1.0,front:2.3,back:2.38},
+   gears:[65,110,160,210,260,310],
+   snd:{o1:'sawtooth',o2:'sawtooth',mul:2.01,g2:0.4,base:48,range:250,lp:700,lpR:2600,vol:0.13,am:0.12,amr:0.5},
+   dash:{style:'digital',bg:'#050505',frame:'#8bd400',num:'#ffffff',unit:'#c8f07a',bars:['#8bd400','#ffd000','#ff2a2a'],gearBg:'#8bd400',gearFg:'#111111'},
+   build:()=>lamboCockpit()},
 
   {id:'barbie',name:'Barbie Motor',emoji:'💖',desc:'Pembe ve parıltılı',
    phys:{A:52,K:105,p:1.8,min:0.8,brake:95,drag:1,steer:1},
@@ -346,14 +354,15 @@ const VEHICLES=[
    dashInfo:()=>'🔥 Ateş %'+Math.round(S.ab.energy*100),
    build:dragonCockpit},
 
-  {id:'tank',name:'Tank',emoji:'🪖',desc:'Araçları ezip geçer',
+  {id:'tank',name:'Tank',emoji:'🪖',desc:'Ezer ve TOP atar',
    phys:{A:20,K:75,p:2,min:0.5,brake:50,drag:1.3,steer:0.55},
    cam:{y:2.6,fov:66,lean:0,bob:0,vib:1.6},hit:{w:1.7,front:4.0,back:3.6},
    gears:[15,30,50,70,95],rpmMax:2.8,
    snd:{o1:'square',o2:'sawtooth',mul:0.5,g2:0.6,base:18,range:40,lp:200,lpR:500,vol:0.26},
    dash:{style:'digital',bg:'#0d140a',frame:'#5a6b2e',num:'#b7ff6a',unit:'#7a9b4a',bars:['#9acd32','#ffd700','#ff4500'],gearBg:'#1a2410',gearFg:'#b7ff6a'},
    onHit(c){knock(c);S.v*=0.85;S.shake=0.6;SFX.thud();S.vs.crush=(S.vs.crush||0)+1;return true;},
-   dashInfo:()=>'💥 '+(S.vs.crush||0)+' araç ezildi',
+   ability:{label:'ATEŞ',mode:'tap',cd:1.6,dur:0.8,start(){tankFire();},update(dt){shellUpdate(dt);},end(){shellUpdate(0,true);}},
+   dashInfo:()=>'💥 '+(S.vs.crush||0)+' araç',
    build:tankCockpit},
 
   {id:'ghost',name:'Hayalet Araba',emoji:'👻',desc:'GEÇ: içinden geç',
@@ -1082,17 +1091,19 @@ const PI=Math.PI;
 // ---------- Renderer / sahne ----------
 const canvas=$('game');
 const renderer=new THREE.WebGLRenderer({canvas,antialias:true,powerPreference:'high-performance'});
-const maxPR=Math.min(window.devicePixelRatio||1,isTouch?1.5:2);
-let pr=Math.min(maxPR,1.25); // makul başla; akıcıysa adaptResolution() yükseltir
+// Telefon ekranları 2-3x yoğunlukta: 1.5'in altı belirgin bulanık/pikselli görünür.
+// Net başla; adaptResolution() yalnızca gerçekten kasarsa düşürür (alt sınır MIN_PR).
+const maxPR=Math.min(window.devicePixelRatio||1,isTouch?3:2),MIN_PR=Math.min(maxPR,1.5);
+let pr=Math.min(maxPR,2.5);
 renderer.setPixelRatio(pr);
-const ANISO=Math.min(8,renderer.capabilities.getMaxAnisotropy());
+const ANISO=renderer.capabilities.getMaxAnisotropy(); // en yüksek: uzaktaki yol / çim dokusu eğik açıda bulanıklaşmasın
 
 const scene=new THREE.Scene();
 const HOR=0xdcb5c0;
 // Sis 800 m'de tamamen kapatır. Araçlar, palmiyeler, tepeler hep bu mesafenin ötesinde doğar;
 // böylece hiçbir şey göz önünde birden belirmez, sisin içinden yavaşça çıkar.
 const FOG_FAR=800;
-scene.fog=new THREE.Fog(HOR,120,FOG_FAR);
+scene.fog=new THREE.Fog(HOR,170,FOG_FAR); // pus 170 m'den başlar: orta mesafe soluk/bulanık görünmesin
 scene.background=new THREE.Color(HOR);
 
 const camera=new THREE.PerspectiveCamera(68,1,0.05,1600);
@@ -1163,9 +1174,12 @@ function merge(parts){
   out.computeBoundingSphere();
   return out;
 }
-function canvasTex(w,h,draw,rx,ry){
-  const c=document.createElement('canvas');c.width=w;c.height=h;
-  draw(c.getContext('2d'),w,h);
+// k: çizim aynı (w×h koordinatında) kalır, tuval k kat çözünürlükte olur → çizgi kenarları keskinleşir
+function canvasTex(w,h,draw,rx,ry,k){
+  k=k||1;
+  const c=document.createElement('canvas');c.width=w*k;c.height=h*k;
+  const g=c.getContext('2d');g.scale(k,k);
+  draw(g,w,h);
   const t=new THREE.CanvasTexture(c);
   t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(rx,ry);t.anisotropy=ANISO;
   return t;
@@ -1204,8 +1218,8 @@ const TAPER=new THREE.CylinderGeometry(0.55,1,1,16); // K.rod ile: a ucunda r, b
 const SHARED=new Set([BOX,RBOX,CYL,CYL6,SPH,HSPH,CONE,TAPER]);
 
 // ---------- Gösterge (dashboard) dokusu ----------
-const dc=document.createElement('canvas');dc.width=256;dc.height=160;
-const dg=dc.getContext('2d');
+const dc=document.createElement('canvas');dc.width=512;dc.height=320; // 2x çözünürlük, çizim 256×160 koordinatında
+const dg=dc.getContext('2d');dg.scale(2,2);
 const dashTex=new THREE.CanvasTexture(dc);
 
 /* ---------- Kokpit kurma araçları (K) ----------
@@ -1311,11 +1325,12 @@ function barbieExtras(root){
   charm.position.set(0.32,-0.35,-0.6);root.add(charm);
 }
 
-function carCockpit(color){
-  const root=new THREE.Group(),P=[];
+// front: kaputun ucu (m), çarpışma kutusunun önüyle aynı olmalı
+function carCockpit(color,front){
+  const root=new THREE.Group(),P=[],f=front||2.45;
   P.push(K.p(RBOX,0x26262b,[0,-0.43,-0.8],[2.3,0.26,0.5]));
   P.push(K.p(RBOX,0x1c1c20,[0,-0.3,-0.88],[2.3,0.05,0.46]));
-  P.push(K.p(RBOX,color,[0,-0.6,-1.75],[1.75,0.12,1.4],[0.06,0,0])); // kaput: ucu -2.45 (çarpışma önü 2.4)
+  P.push(K.p(RBOX,color,[0,-0.6,-(1.05+f)/2],[1.75,0.12,f-1.05],[0.06,0,0])); // kaput
   P.push(K.p(BOX,0x2a2e3a,[0.55,-0.33,-0.8],[0.3,0.17,0.02],[-0.3,0,0])); // orta ekran
   for(const s of [-1,1]){
     P.push(K.p(BOX,0x18181c,[s*0.95,0.1,-0.75],[0.06,0.95,0.08],[0.6,0,s*0.2])); // A direği
@@ -1332,6 +1347,26 @@ function carCockpit(color){
   root.add(K.screen(0.28,0.175,[0,-0.2,-0.82],[-0.2],0x111114));
   const wheel=steeringWheel(root,[0,-0.41,-0.5],-0.35,0.19);
   return {root,steer:wheel,steerAxis:'z',steerK:0.07};
+}
+
+// '67 Impala: uzun siyah kaput (ortasında hafif sırt), krom torpido çıtası, ince beyaz direksiyon göbeği
+function impalaCockpit(){
+  const r=carCockpit(0x0b0b0e,2.82),C=0xdfe3ea;
+  r.root.add(K.mesh([
+    K.p(RBOX,0x141416,[0,-0.305,-0.9],[2.26,0.03,0.4]),K.p(BOX,C,[0,-0.29,-0.7],[2.2,0.018,0.02]),
+    ...[-1,1].map(s=>K.p(RBOX,0x0b0b0e,[s*0.32,-0.535,-1.9],[0.08,0.025,1.6],[0.06,0,0])),             // kaput sırtları
+    ...[-1,1].map(s=>K.p(BOX,C,[s*0.86,-0.545,-1.9],[0.02,0.015,1.6],[0.06,0,0]))                      // çamurluk krom çıtası
+  ],{shiny:130,spec:0xbbbbbb}));
+  return r;
+}
+// Modern süper spor: yeşil kaput, kaput üstü iki hava kanalı, karbon torpido
+function lamboCockpit(){
+  const r=carCockpit(0x7ac70c,2.3);
+  r.root.add(K.mesh([
+    K.p(RBOX,0x1c1c1e,[0,-0.305,-0.9],[2.26,0.03,0.4]),K.p(BOX,0x8bd400,[0,-0.29,-0.7],[2.2,0.012,0.012]),
+    ...[-1,1].map(s=>K.p(BOX,0x111111,[s*0.35,-0.535,-1.65],[0.28,0.012,0.5],[0.06,0,0]))
+  ],{shiny:90,spec:0x777777}));
+  return r;
 }
 
 function truckCockpit(){
@@ -1849,9 +1884,11 @@ function spaceExt(){
   }
   riderP(P,{hip:[0,0.98,0.25],sh:[0,1.26,-0.08],head:[0,1.4,-0.14],hand:[0.3,1.0,-0.45],knee:[0.22,0.88,-0.25],foot:[0.2,0.62,0.1],suit:0x1b1f33,helmet:0x9ffcff});
   root.add(K.mesh(P,{shiny:100,spec:0x6677aa}),K.mesh(G,{mat:'basic'}));
-  for(const s of [-1,1]){const g=E.glow(0x6fd0ff,1.4);g.position.set(s*0.6,0.68,0.65);root.add(g);}
-  const under=E.glow(0x2ff3ff,3,0.6);under.position.y=0.2;root.add(under);
-  return {root,h:1.55};
+  for(const s of [-1,1]){const g=E.glow(0x6fd0ff,0.7,0.75);g.position.set(s*0.6,0.68,0.65);root.add(g);}
+  // alt ışık: yola yatık yumuşak leke (dik sprite yolu keserek çizgi bırakıyordu); süzülürken yerde kalır
+  const under=new THREE.Mesh(new THREE.PlaneGeometry(1.8,3.0),new THREE.MeshBasicMaterial({map:glowTex,color:0x2ff3ff,transparent:true,opacity:0.3,blending:THREE.AdditiveBlending,depthWrite:false}));
+  under.rotation.x=-PI/2;root.add(under);
+  return {root,h:1.55,tick(){under.position.y=0.03-root.position.y;}};
 }
 function f1Ext(){
   const root=new THREE.Group(),P=[],red=0xd0101a;
@@ -2140,6 +2177,129 @@ function carExt(color,o){
   root.add(b,l);
   return {root,h:1.5};
 }
+// Dört tekerleği kurar; build(s,r) bir taraf için tekerlek parçalarını verir (s: -1 sol, 1 sağ). Dönüş için listeyi döndürür.
+function carWheels(root,list,build,o){
+  const geos={},mat=new THREE.MeshPhongMaterial({vertexColors:true,shininess:o.shiny,specular:o.spec});
+  return list.map(([x,z,r])=>{
+    const s=x<0?-1:1,k=s+'_'+r,g=geos[k]||(geos[k]=merge(build(s,r)));
+    const w=new THREE.Mesh(g,mat);w.position.set(x,r,z);w.userData.r=r;root.add(w);return w;
+  });
+}
+const spinWheels=(ws,dt)=>{for(const w of ws)w.rotation.x-=S.v/3.6*dt/w.userData.r;};
+// '67 Impala 4 kapılı hardtop: ayna gibi siyah boya, geniş C direkleri, kalça kabarığı, boydan boya krom ızgara
+// içinde çift yuvarlak far, arkada üçer stop, krom jant kapakları, camdan görünen siyah iç döşeme.
+function impalaExt(){
+  const root=new THREE.Group(),body=new THREE.Group(),P=[],C=[],I=[],G=[],L=[],T=[];
+  const blk=0x0b0b0e,chrome=0xdfe3ea,dark=0x050506;
+  root.add(body);
+  P.push(carShell([[-2.68,0.36],[-2.74,0.78],[-2.55,0.87],[-0.85,0.9],[1.6,0.9],[2.6,0.86],[2.7,0.76],[2.66,0.36]],1.88,0.1,0.07,blk));
+  P.push(K.p(RBOX,blk,[0,1.385,0.42],[1.8,0.06,1.4]));                                                  // tavan (camın üstünü örter)
+  G.push(carShell([[-0.85,0.88],[-0.25,1.34],[1.08,1.35],[1.8,0.89]],1.72,0.08,0.04,0x8fa6b8));         // camlar
+  for(const s of [-1,1]){
+    P.push(K.p(RBOX,blk,[s*0.97,0.66,1.65],[0.1,0.4,2.0]),K.p(RBOX,blk,[s*0.96,0.68,-1.85],[0.1,0.34,1.5])); // kalça ve ön çamurluk kabarığı
+    P.push(K.p(BOX,blk,[s*0.8,1.12,1.44],[0.14,0.04,0.86],[0.56,0,0]));                                // geniş C direği
+    C.push(K.p(BOX,chrome,[s*1.025,0.6,0],[0.012,0.025,4.6]),K.p(BOX,chrome,[s*1.0,0.39,0.05],[0.02,0.04,3.0])); // yan çıtalar
+    C.push(K.p(BOX,chrome,[s*0.9,0.905,0.45],[0.02,0.02,2.5]),K.rod(chrome,[s*0.86,0.9,-0.85],[s*0.84,1.34,-0.25],0.016));
+    C.push(K.p(RBOX,chrome,[s*1.03,0.8,-0.2],[0.02,0.03,0.13]),K.p(RBOX,chrome,[s*1.03,0.8,0.95],[0.02,0.03,0.13])); // kapı kolları
+    C.push(K.rod(chrome,[s*0.97,0.92,-0.78],[s*1.05,0.99,-0.8],0.012),K.p(SPH,chrome,[s*1.08,1.01,-0.8],[0.065,0.045,0.04]));
+    for(const z of [-1.68,1.6]){
+      P.push(K.p(CYL,dark,[s*1.025,0.36,z],[0.42,0.01,0.42],[0,0,PI/2]));                               // çamurluk boşluğu (tekerleğin arkasında)
+      C.push(K.p(new THREE.TorusGeometry(0.43,0.013,6,18,PI),chrome,[s*1.035,0.36,z],[1,1,1],[0,PI/2,0]));
+    }
+    // ön: ızgara içinde ikişer yuvarlak far, krom çerçeveli; arka: üçer yatay stop
+    for(const x of [0.58,0.82]){L.push(K.p(CYL,0xfff6dc,[s*x,0.66,-2.845],[0.08,0.03,0.08],[PI/2,0,0]));C.push(K.p(K.tor(0.09,0.014),chrome,[s*x,0.66,-2.845]));}
+    for(const x of [0.36,0.58,0.8]){T.push(K.p(RBOX,0xff1a1a,[s*x,0.66,2.8],[0.18,0.08,0.03]));C.push(K.p(RBOX,chrome,[s*x,0.66,2.79],[0.21,0.11,0.03]));}
+    C.push(K.p(CYL,chrome,[s*0.55,0.26,2.62],[0.045,0.25,0.045],[PI/2,0,0]),K.p(CYL,dark,[s*0.55,0.26,2.75],[0.032,0.01,0.032],[PI/2,0,0]));
+  }
+  P.push(K.p(BOX,dark,[0,0.64,-2.82],[1.96,0.26,0.03]));                                            // ızgara
+  for(let i=0;i<5;i++)C.push(K.p(BOX,chrome,[0,0.53+i*0.055,-2.835],[1.94,0.01,0.015]));
+  C.push(K.p(BOX,chrome,[0,0.79,-2.83],[2.0,0.025,0.03]),K.p(RBOX,chrome,[0,0.66,-2.85],[0.16,0.06,0.02])); // üst çıta, amblem
+  C.push(K.p(RBOX,chrome,[0,0.43,-2.86],[2.06,0.15,0.14]),K.p(RBOX,chrome,[0,0.45,2.8],[2.06,0.16,0.14])); // tamponlar
+  C.push(K.p(BOX,chrome,[0,0.82,2.76],[1.9,0.015,0.02]),K.p(BOX,chrome,[0,0.66,2.785],[0.16,0.09,0.01]));
+  P.push(K.p(BOX,0xf2efe0,[0,0.45,2.875],[0.42,0.11,0.01]),K.p(BOX,0x7a1414,[0,0.48,2.88],[0.38,0.025,0.004])); // plaka
+  for(const s of [-1,1])P.push(K.p(BOX,blk,[s*0.32,0.915,-1.7],[0.08,0.025,1.7]));                    // kaput sırtları
+  C.push(K.rod(0x222222,[-0.9,0.9,-1.4],[-0.9,1.7,-1.25],0.005));                                      // anten
+  // iç: siyah koltuklar, torpido, ince direksiyon, sürücü (deri ceket)
+  I.push(K.p(BOX,0x111111,[0,0.62,0.4],[1.8,0.04,2.4]),K.p(BOX,0x151515,[0,0.86,-0.7],[1.7,0.14,0.26]));
+  I.push(K.p(RBOX,0x1c1c1e,[0,0.72,0.22],[1.6,0.16,0.5]),K.p(RBOX,0x1c1c1e,[0,0.95,0.45],[1.6,0.42,0.14],[-0.15,0,0]));
+  I.push(K.p(RBOX,0x1c1c1e,[0,0.72,1.25],[1.6,0.16,0.5]),K.p(RBOX,0x1c1c1e,[0,0.93,1.48],[1.6,0.36,0.14],[-0.15,0,0]));
+  I.push(K.p(K.tor(0.2,0.012),0x2a2a2a,[0,0.98,-0.42],[1,1,1],[-0.45,0,0]),K.rod(0x222222,[0,0.98,-0.42],[0,0.84,-0.6],0.02));
+  I.push(K.rod(0x3a2a1e,[0,0.78,0.22],[0,1.02,0.18],0.17),K.p(SPH,0xd9a07a,[0,1.12,0.12],[0.11,0.13,0.12]),K.p(SPH,0x3a2618,[0,1.17,0.15],[0.115,0.09,0.12]));
+  for(const s of [-1,1])I.push(K.rod(0x3a2a1e,[s*0.2,0.98,0.15],[s*0.17,0.98,-0.38],0.045));
+  body.add(K.mesh(P,{shiny:140,spec:0xb8b8c0}),K.mesh(C,{shiny:160,spec:0xffffff}),K.mesh(I,{shiny:15}),
+    K.mesh(L,{mat:'basic'}),K.mesh(G,{transparent:true,opacity:0.4,shiny:140,spec:0xffffff}));
+  const tail=K.mesh(T,{mat:'basic'});body.add(tail);
+  for(const s of [-1,1])for(const x of [0.58,0.82]){const g=E.glow(0xfff2cc,0.4,0.5);g.position.set(s*x,0.66,-2.92);body.add(g);}
+  // tekerlek: siyah lastik, siyah çelik jant, ortada kubbeli krom kapak ve kanallar
+  const wheels=carWheels(root,[[-0.94,-1.68,0.36],[0.94,-1.68,0.36],[-0.94,1.6,0.36],[0.94,1.6,0.36]],(s,r)=>{
+    const W=[K.p(CYL,0x121212,[0,0,0],[r,0.22,r],[0,0,PI/2]),K.p(CYL,0x1a1a1c,[s*0.002,0,0],[r*0.68,0.224,r*0.68],[0,0,PI/2]),
+      K.p(CYL,chrome,[s*0.1,0,0],[r*0.58,0.03,r*0.58],[0,0,PI/2]),K.p(SPH,chrome,[s*0.115,0,0],[0.03,0.09,0.09]),
+      K.p(K.tor(r*0.5,0.008),0x888888,[s*0.117,0,0],[1,1,1],[0,PI/2,0])];
+    for(let i=0;i<8;i++){const a=i*PI/4;W.push(K.p(BOX,0x9a9ea6,[s*0.117,Math.sin(a)*r*0.36,Math.cos(a)*r*0.36],[0.006,0.012,r*0.22],[a,0,0]));}
+    return W;
+  },{shiny:150,spec:0xffffff});
+  let last=S.t;
+  return {root,h:1.45,tick(){
+    const dt=Math.min(0.05,Math.max(0,S.t-last));last=S.t;
+    spinWheels(wheels,dt);
+    // rölantide V8 gövdeyi hafifçe sarsar; gaza basınca arka hafif çöker
+    const idle=S.v<3&&S.state==='run';
+    body.rotation.z=idle?Math.sin(S.t*38)*0.0035:0;
+    body.rotation.x+=((keys.gas&&S.state==='run'?-0.012:0)-body.rotation.x)*Math.min(1,dt*5);
+    tail.material.color.setScalar(keys.brake?1:0.55); // frende stoplar parlar
+  }};
+}
+// Modern süper spor (kama gövde): yeşil boya + siyah tavan, Y ışık imzası, yan hava girişleri, motor kapağı
+// panjurları, karbon difüzör ve aktif kanat, altıgen egzoz (gazda patlamalı alev), koyu jant + kaliper.
+function lamboExt(){
+  const root=new THREE.Group(),P=[],D=[],G=[],L=[],T=[],O=0x7ac70c,blk=0x101012,cf=0x1c1c1e;
+  P.push(carShell([[-2.22,0.3],[-2.28,0.44],[-2.1,0.57],[-0.95,0.8],[0.9,0.87],[2.1,0.89],[2.3,0.79],[2.3,0.3]],1.86,0.06,0.07,O));
+  G.push(carShell([[-1.0,0.79],[-0.2,1.12],[0.6,1.14],[1.9,0.9]],1.36,0.06,0.04,0x1e262e));
+  D.push(K.p(RBOX,blk,[0,1.175,0.25],[1.22,0.04,0.95]));                                                   // siyah tavan
+  for(let i=0;i<6;i++){const z=1.0+i*0.15;D.push(K.p(BOX,blk,[0,1.2-(z-0.6)*0.19,z],[1.05,0.015,0.07]));} // motor panjurları
+  for(const s of [-1,1]){
+    P.push(K.p(BOX,0x5c9608,[s*1.005,0.6,-0.45],[0.012,0.02,1.7]));                                          // yan karakter çizgisi
+    D.push(K.p(BOX,blk,[s*1.0,0.64,0.75],[0.03,0.28,0.8],[-0.25,0,0]),K.p(BOX,O,[s*1.015,0.64,0.75],[0.02,0.04,0.8],[-0.25,0,0])); // yan hava girişi + bıçak
+    D.push(K.p(BOX,cf,[s*0.98,0.32,0],[0.06,0.08,3.4]));                                                    // marşpiyel
+    D.push(K.p(BOX,blk,[s*0.7,0.56,-2.12],[0.5,0.12,0.18],[0.5,0,s*0.05]),K.p(BOX,blk,[s*0.62,0.4,-2.27],[0.55,0.14,0.03])); // far yuvası, ön hava girişi
+    L.push(K.p(BOX,0xf4fbff,[s*0.72,0.6,-2.19],[0.42,0.03,0.02],[0,0,s*0.15]),K.p(BOX,0xf4fbff,[s*0.53,0.545,-2.21],[0.18,0.025,0.02],[0,0,-s*0.7]));
+    T.push(K.p(BOX,0xff1a1a,[s*0.66,0.73,2.4],[0.46,0.035,0.02],[0,0,s*0.12]),K.p(BOX,0xff1a1a,[s*0.46,0.64,2.4],[0.2,0.03,0.02],[0,0,-s*0.7]));
+    D.push(K.p(RBOX,O,[s*1.04,0.95,-0.5],[0.1,0.06,0.16]),K.rod(cf,[s*0.72,0.86,-0.5],[s*1.0,0.95,-0.5],0.014)); // ayna (kapı üstünden)
+    D.push(K.rod(cf,[s*0.55,0.89,2.0],[s*0.55,0.99,2.05],0.025));                                            // kanat ayağı
+    for(const z of [-1.4,1.35]){
+      D.push(K.p(CYL,blk,[s*1.005,0.37,z],[0.42,0.01,0.42],[0,0,PI/2]));
+      D.push(K.p(new THREE.TorusGeometry(0.43,0.02,6,18,PI),cf,[s*1.01,0.37,z],[1,1,1],[0,PI/2,0]));
+    }
+  }
+  D.push(K.p(BOX,cf,[0,0.27,-2.24],[1.95,0.03,0.3]),K.p(BOX,0x1a1a1a,[0,0.56,2.385],[1.95,0.42,0.02]));          // ön splitter, arka ızgara
+  D.push(K.p(BOX,cf,[0,0.3,2.3],[1.6,0.12,0.3]),K.p(BOX,cf,[0,0.99,2.05],[1.7,0.03,0.28]));                   // difüzör, kanat
+  for(let i=0;i<5;i++)D.push(K.p(BOX,cf,[(i-2)*0.3,0.3,2.36],[0.02,0.16,0.2]));
+  D.push(K.p(CYL6,0x2a2a2e,[0,0.47,2.39],[0.13,0.06,0.13],[PI/2,0,0]),K.p(CYL6,0x050505,[0,0.47,2.42],[0.1,0.02,0.1],[PI/2,0,0]));
+  D.push(K.p(SPH,0x2a1a10,[0,1.0,0.15],[0.11,0.13,0.12]),K.p(SPH,0x111111,[0,1.06,0.17],[0.115,0.08,0.12])); // sürücü başı
+  root.add(K.mesh(P,{shiny:130,spec:0xa0a0a0}),K.mesh(D,{shiny:50}),K.mesh(L,{mat:'basic'}),
+    K.mesh(G,{transparent:true,opacity:0.72,shiny:140,spec:0xffffff}));
+  const tail=K.mesh(T,{mat:'basic'});root.add(tail);
+  const flame=E.glow(0xff9a40,0.45,0);flame.position.set(0,0.47,2.55);root.add(flame);
+  // jant: koyu gri, beş çift kol; kaliper dönmesin diye gövdeye eklenir
+  const wl=[[-0.86,-1.4,0.36],[0.86,-1.4,0.36],[-0.86,1.35,0.37],[0.86,1.35,0.37]];
+  const wheels=carWheels(root,wl,(s,r)=>{
+    const W=[K.p(CYL,0x111111,[0,0,0],[r,0.3,r],[0,0,PI/2]),K.p(CYL,0x2b2d31,[0,0,0],[r*0.76,0.31,r*0.76],[0,0,PI/2]),
+      K.p(CYL,0x0a0a0a,[0,0,0],[r*0.66,0.316,r*0.66],[0,0,PI/2]),K.p(CYL,0x3a3c42,[s*0.17,0,0],[0.07,0.02,0.07],[0,0,PI/2])];
+    for(let i=0;i<10;i++){const a=i*PI/5+(i%2?0.12:-0.12);W.push(K.rod(0x3a3c42,[s*0.168,0,0],[s*0.168,Math.sin(a)*r*0.7,Math.cos(a)*r*0.7],0.016));}
+    return W;
+  },{shiny:80,spec:0x666666});
+  root.add(K.mesh(wl.map(([x,z,r])=>K.p(RBOX,0xffd000,[x+Math.sign(x)*0.16,r+0.12,z+0.05],[0.01,0.12,0.13])),{shiny:80})); // kaliper
+  let last=S.t,gasWas=false,flameT=0;
+  return {root,h:1.2,tick(){
+    const dt=Math.min(0.05,Math.max(0,S.t-last));last=S.t;
+    spinWheels(wheels,dt);
+    tail.material.color.setScalar(keys.brake?1:0.55);
+    // gaz bırakılınca egzozdan kısa, küçük patlama alevi (sürekli parlamaz)
+    if(!keys.gas&&gasWas&&S.v>90&&S.state==='run')flameT=0.18;
+    gasWas=keys.gas;flameT=Math.max(0,flameT-dt);
+    flame.material.opacity=flameT>0?0.55+Math.random()*0.3:0;
+  }};
+}
 function policeExt(){
   const e=carExt(0xf0f0f0);
   e.root.add(K.mesh([K.p(BOX,0x1e40af,[0,0.75,-0.15],[1.88,0.12,3.0]),K.p(BOX,0x222226,[0,1.47,0.05],[1.2,0.1,0.3])],{shiny:40}));
@@ -2151,7 +2311,8 @@ const EXTERIORS={
   sport:()=>bikeExt({body:0x141518,dark:0x1c1d22,fork:0xc9a04e,rim:0x3fb54a,suit:0x263238,helmet:0x3fb54a}),
   barbie:()=>bikeExt({body:0xff4fa3,dark:0xe23d8e,fork:0xffd700,rim:0xffffff,seat:0xffffff,suit:0xff8ac8,helmet:0xffffff,
     extra:root=>root.add(K.mesh([-1,1].map(s=>K.p(K.heart(0.09),0xffffff,[s*0.215,0.9,-0.32],[1,1,1],[0,s*PI/2,0])),{mat:'basic',side:THREE.DoubleSide}))}),
-  car:()=>carExt(0xb3122a),
+  impala:impalaExt,
+  lambo:lamboExt,
   taxi:()=>{const e=carExt(0xf5c400);e.root.add(K.mesh([K.p(RBOX,0xf5c400,[0,1.5,0.05],[0.6,0.18,0.25]),K.p(BOX,0x111111,[0,1.5,0.18],[0.45,0.08,0.01])],{shiny:40}));return e;},
   police:policeExt,
   ghost:()=>carExt(0x2c3350,{ghost:true}),
@@ -2222,7 +2383,7 @@ function drawGround(base,tuft,blobs){
     for(let i=0;i<500;i++){const x=Math.random()*w,y=Math.random()*h;g.beginPath();g.moveTo(x,y);g.lineTo(x+rnd(-1.5,1.5),y-rnd(2,5));g.stroke();}
   };
 }
-const roadTex=canvasTex(256,1024,drawRoad,1,L/24);
+const roadTex=canvasTex(256,1024,drawRoad,1,L/24,2);
 strip(-7.5,7.5,0,roadTex,24);
 const roadTex2=roadTex.clone();roadTex2.needsUpdate=true;
 strip(-25.5,-10.5,0,roadTex2,24);
@@ -3114,12 +3275,12 @@ function makePool(n,blend){
   }
   return a;
 }
-const FXA=makePool(70,THREE.AdditiveBlending),FXS=makePool(40,THREE.NormalBlending);
-function emit(pool,x,y,z,color,n,speed,size,life,grav){
+const FXA=makePool(70,THREE.AdditiveBlending),FXS=makePool(90,THREE.NormalBlending);
+function emit(pool,x,y,z,color,n,speed,size,life,grav,op){ // op: duman yoğunluğu (verilirse geç söner)
   for(let k=0;k<n;k++){
     const s=pool.find(p=>!p.visible);if(!s)return;
     const u=s.userData;s.visible=true;s.material.color.setHex(color);
-    u.age=0;u.life=life*rnd(0.7,1.2);u.size=size;u.g=grav;u.v=[rnd(-1,1)*speed,rnd(-0.3,1)*speed,rnd(-1,1)*speed];
+    u.age=0;u.life=life*rnd(0.7,1.2);u.size=size;u.g=grav;u.op=op||0;u.v=[rnd(-1,1)*speed,rnd(-0.3,1)*speed,rnd(-1,1)*speed];
     s.position.set(x,y,z);s.scale.set(size,size,1);
   }
 }
@@ -3132,10 +3293,10 @@ function updateFx(dt,d){
     const u=s.userData;u.age+=dt;if(u.age>=u.life){s.visible=false;continue;}
     s.position.x+=u.v[0]*dt;s.position.y+=u.v[1]*dt;s.position.z+=u.v[2]*dt+d;u.v[1]-=u.g*dt;
     const k=u.age/u.life,sm=pool===FXS;
-    s.material.opacity=(1-k)*(sm?0.6:1);const sc=u.size*(sm?1+k*2.5:1);s.scale.set(sc,sc,1);
+    s.material.opacity=u.op?u.op*(1-k*k):(1-k)*(sm?0.6:1);const sc=u.size*(sm?1+k*2.5:1);s.scale.set(sc,sc,1);
   }
 }
-function clearFx(){for(const s of FXA.concat(FXS))s.visible=false;}
+function clearFx(){for(const s of FXA.concat(FXS))s.visible=false;SHELL.visible=false;}
 
 // ---------- Ses efektleri ----------
 let sfxOut=null,noiseBuf=null,siren=null;
@@ -3168,7 +3329,9 @@ const SFX={
   clop(d){tone('triangle',900,350,0.05,0.16,d||0);},
   squeak(){tone('sine',1500,1050,0.09,0.035);},
   door(){noiseHit(0.5,0.12,1500,400);tone('sine',800,800,0.12,0.04,0.45);},
-  click(){tone('square',1400,1400,0.03,0.04);}
+  click(){tone('square',1400,1400,0.03,0.04);},
+  cannon(){tone('sine',110,35,0.5,0.4);noiseHit(0.6,0.4,2200,120);},
+  boom(far){const v=0.4*(1-far*0.6);tone('sine',70,28,0.9,v,far*0.25);noiseHit(1.4,v,900,50,far*0.25);}
 };
 function sirenOn(){
   sirenOff();if(!AC||!sfxOut)return;
@@ -3194,6 +3357,49 @@ function burn(c){ // ejderha: aracı yak
   fx(c.x,1.2,c.z,0xff8a20,10,6,2.5,0.8,-2);
 }
 const burntMat=new THREE.MeshLambertMaterial({color:0x1c1a1a});burntMat.userData.keep=true;
+// Tank topu: namludan çıkan mermi önündeki en yakın araca (yoksa ~90 m ileriye) uçar ve patlar.
+// Patlama çoğunlukla duman ve toz: kısa, kızıl bir parlama; koyu yükselen duman; düşen enkaz parçaları.
+const SHELL=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex,color:0xffb060,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,fog:false,opacity:0.8}));
+SHELL.scale.set(0.35,0.35,1);SHELL.visible=false;scene.add(SHELL);
+function muzzle(){return camMode==='fp'?[S.x,2.0,-5.9]:[S.x,1.8+S.jumpH,-4.95];}
+function tankFire(){
+  const [mx,my,mz]=muzzle();
+  emit(FXA,mx,my,mz-0.3,0xc8641e,3,1.5,1.4,0.12,0);                 // namlu ağzı parlaması (kısa, kızıl)
+  emit(FXS,mx,my,mz-0.2,0x8a8a86,7,2.2,0.9,1.0,-0.8);                // namlu dumanı
+  SFX.cannon();S.shake=Math.max(S.shake,0.45);S.v*=0.97;
+  let t=null;
+  for(const c of cars)if(c.on&&!c.fly&&c.burn==null&&c.z<-8&&c.z>-160&&Math.abs(c.x-S.x)<c.hw+0.8&&(!t||c.z>t.z))t=c;
+  S.vs.shell={p:[mx,my,mz],o:[mx,my,mz],c:t,tp:t?[t.x,0.8,t.z]:[S.x,0.2,-90],k:0,len:t?-t.z:90};
+  SHELL.visible=true;SHELL.position.set(mx,my,mz);
+}
+function shellUpdate(dt,force){
+  const s=S.vs.shell;if(!s)return;
+  const c=s.c;
+  if(c&&c.on&&!c.fly&&c.burn==null){s.tp[0]=c.x;s.tp[2]=c.z;}else{s.c=null;s.tp[2]+=S.v/3.6*dt;}
+  s.o[2]+=S.v/3.6*dt; // namlu ağzı noktası da dünya ile birlikte kayar
+  s.k=Math.min(1,s.k+dt*240/s.len);
+  for(let i=0;i<3;i++)s.p[i]=s.o[i]+(s.tp[i]-s.o[i])*s.k;
+  SHELL.position.set(s.p[0],s.p[1],s.p[2]);
+  if(s.k>=1||force){SHELL.visible=false;S.vs.shell=null;explode(s.p[0],s.p[1],s.p[2]);}
+}
+function explode(x,y,z){
+  emit(FXA,x,y+0.6,z,0xb4501a,4,2.5,3.2,0.22,0);                      // kısa kızıl parlama
+  emit(FXS,x,y+0.5,z,0xa8551f,6,4,1.6,0.45,-1,0.9);                      // ateş topu (parlamayan, kirli turuncu)
+  emit(FXS,x,y+0.8,z,0x262422,16,3.2,2.2,2.8,-2.2,0.85);                   // yükselen kara duman
+  emit(FXS,x,0.3,z,0x6b6255,8,6,1.2,1.3,-0.4,0.7);                       // yerden kalkan toz
+  emit(FXS,x,y+0.5,z,0x141414,8,10,0.28,1.1,18,0.95);                     // enkaz parçaları
+  for(const c of cars){
+    if(!c.on||c.fly)continue;
+    const dx=c.x-x,dz=c.z-z,d=Math.hypot(dx,dz)||0.1;
+    if(d>7)continue;
+    const f=1-d/9,nx=dx/d,nz=dz/d;
+    c.sp=0;c.burn=null;c.b.material=burntMat;c.l.visible=false;
+    c.fly={t:0,smoke:true,v:[nx*rnd(7,12)*f+rnd(-2,2),rnd(9,14)*f+3,nz*rnd(5,9)*f-rnd(1,4)],r:[rnd(-5,5),rnd(-4,4),rnd(-5,5)]};
+    S.vs.crush=(S.vs.crush||0)+1;
+  }
+  const far=Math.min(1,Math.abs(z)/160);
+  S.shake=Math.max(S.shake,0.55*(1-far));SFX.boom(far);
+}
 function breathFire(dt){
   S.vs.fs=(S.vs.fs||0)-dt;if(S.vs.fs<=0){S.vs.fs=0.35;SFX.fire();}
   for(const c of cars)if(c.on&&c.z<-3&&c.z>-95&&Math.abs(c.x-S.x)<c.hw+1.6)burn(c);
@@ -3590,6 +3796,7 @@ function updateTraffic(dt,ms,run){
       f.t+=dt;f.v[1]-=20*dt;
       c.x+=f.v[0]*dt;c.y+=f.v[1]*dt;c.z+=f.v[2]*dt;
       c.grp.rotation.x+=f.r[0]*dt;c.grp.rotation.y+=f.r[1]*dt;c.grp.rotation.z+=f.r[2]*dt;
+      if(f.smoke&&Math.random()<dt*14)emit(FXS,c.x,c.y+0.8,c.z,0x2a2826,1,0.8,0.9,1.4,-2); // patlayan araç tüter
       if(f.t>3||c.y<-4){spawnCar(c,false);continue;}
     }
     if(c.burn!=null){ // ejderha yaktı: kararır, alev alır, gömülür
@@ -3680,7 +3887,7 @@ function presentFrame(dt){
 let AC=null,eng=null,muted=false;
 function setOscTypes(){
   const s=V.snd;
-  eng.o1.type=s.o1;eng.o2.type=s.o2;eng.g2.gain.value=s.g2;
+  eng.o1.type=s.o1;eng.o2.type=s.o2;eng.g2.gain.value=s.g2;eng.lfoG.gain.value=s.am||0;
 }
 function initAudio(){
   if(AC){if(AC.state==='suspended')AC.resume();return;}
@@ -3688,11 +3895,14 @@ function initAudio(){
     AC=new (window.AudioContext||window.webkitAudioContext)();
     const master=AC.createGain();master.gain.value=0;master.connect(AC.destination);
     const lp=AC.createBiquadFilter();lp.type='lowpass';lp.frequency.value=900;lp.Q.value=3;
-    const eg=AC.createGain();eg.gain.value=0;lp.connect(eg);eg.connect(master);
+    const eg=AC.createGain();eg.gain.value=0;lp.connect(eg);
+    // genlik modülasyonu: lfo, am kazancını 1 ± derinlik arasında salındırır
+    const am=AC.createGain();am.gain.value=1;eg.connect(am);am.connect(master);
+    const lfo=AC.createOscillator(),lfoG=AC.createGain();lfoG.gain.value=0;lfo.connect(lfoG);lfoG.connect(am.gain);
     const o1=AC.createOscillator();const g1=AC.createGain();g1.gain.value=0.5;o1.connect(g1);g1.connect(lp);
     const o2=AC.createOscillator();const g2=AC.createGain();g2.gain.value=0.25;o2.connect(g2);g2.connect(lp);
-    o1.start();o2.start();
-    eng={master,lp,eg,o1,o2,g2};
+    o1.start();o2.start();lfo.start();
+    eng={master,lp,eg,o1,o2,g2,lfo,lfoG};
     sfxOut=AC.createGain();sfxOut.gain.value=0;sfxOut.connect(AC.destination);
     setOscTypes();
   }catch(e){AC=null;eng=null;}
@@ -3710,7 +3920,7 @@ function updAudio(){
   eng.master.gain.setTargetAtTime(on?1:0,t,0.08);
   sfxOut.gain.setTargetAtTime(on?1:0,t,0.03);
   eng.eg.gain.setTargetAtTime(s.vol*(keys.gas?1.15:0.85),t,0.08);
-  if(f>0){eng.o1.frequency.setTargetAtTime(f,t,0.03);eng.o2.frequency.setTargetAtTime(f*s.mul,t,0.03);}
+  if(f>0){eng.o1.frequency.setTargetAtTime(f,t,0.03);eng.o2.frequency.setTargetAtTime(f*s.mul,t,0.03);eng.lfo.frequency.setTargetAtTime(f*(s.amr||0.5),t,0.03);}
   eng.lp.frequency.setTargetAtTime(s.lp+rpm*s.lpR+(keys.gas?500:0),t,0.05);
 }
 
@@ -3851,16 +4061,16 @@ window.addEventListener('resize',resize);
 window.addEventListener('orientationchange',()=>setTimeout(resize,250));
 
 // ---------- Döngü ----------
-// Kare süresi ölçümü: 2 sn'lik pencerelerde ortalama alınır. Yavaşsa çözünürlük düşer (alt sınır 1;
-// daha düşükte uzaktaki araçlar seçilemiyor), art arda 3 pencere hızlıysa yeniden yükselir.
+// Kare süresi ölçümü: 2 sn'lik pencerelerde ortalama alınır. Yavaşsa çözünürlük düşer (alt sınır MIN_PR;
+// daha düşüğü telefonda bulanık), art arda 2 pencere hızlıysa yeniden yükselir.
 let last=performance.now(),hudT=0,audioT=0,perfT=0,perfN=0,fastWindows=0;
 function adaptResolution(raw){
   if(raw>0.25)return; // arka plandan dönüş gibi tek seferlik uzun kareler ölçümü bozmasın
   perfT+=raw;perfN++;
   if(perfT<2)return;
   const avg=perfT/perfN;perfT=0;perfN=0;
-  if(avg>1/40&&pr>1){pr=Math.max(1,pr-0.25);fastWindows=0;}
-  else if(avg<1/55&&pr<maxPR){if(++fastWindows<3)return;pr=Math.min(maxPR,pr+0.25);fastWindows=0;}
+  if(avg>1/45&&pr>MIN_PR){pr=Math.max(MIN_PR,pr-0.25);fastWindows=0;}
+  else if(avg<1/56&&pr<maxPR){if(++fastWindows<2)return;pr=Math.min(maxPR,pr+0.25);fastWindows=0;}
   else{fastWindows=0;return;}
   renderer.setPixelRatio(pr);resize();
 }

@@ -202,7 +202,8 @@
     hitFrom: 0.3, hitTo: 0.8,      // üçgenin çarpışan kısmı (boyuna oranla)
     beat: 0.48,                    // nabız periyodu (sn)
     wallSpeed:   { start: 0.62, rate: 0.012,  limit: 1.9 },  // duvar hızı (birim/sn)
-    playerSpeed: { start: 7.6,  rate: 0.025,  limit: 9.8 },  // oyuncu dönüşü (rad/sn)
+    playerSpeed: { start: 5.6,  rate: 0.02,   limit: 7.6 },  // oyuncu dönüşü (rad/sn)
+    playerAccel: 0.1,              // tam hıza çıkma süresi (sn): kısa dokunuş = küçük, hassas adım
     reaction:    { start: 0.75, rate: -0.005, limit: 0.2 },  // sıralar arası tepki payı (sn)
     rotSpeed:    { start: 0.45, rate: 0.018,  limit: 2.2 },  // arena dönüşü (rad/sn)
     speedLookahead: 1.08,          // duvarlar yolda hızlanacağı için aralık hesabında pay
@@ -288,6 +289,7 @@
   let levelIdx = 0;
   let walls = [], cursor = 0, lastPattern = '';
   let angle = SEG * 1.5;                   // oyuncunun arena içindeki açısı
+  let pVel = 0;                            // oyuncunun anlık dönüş hızı
   let rot = 0, rotVel = 0.5, rotDir = 1, rotTimer = 4, burst = 0;
   let tilt = 1, pulse = 0, beatT = 0, flash = 0, shake = 0;
   let deadT = 0, freeze = 0, overShown = false, deathZoom = 0;
@@ -308,10 +310,11 @@
   const wallThickness = () => 0.07 + 0.025 * (wallSpeed() - CFG.wallSpeed.start);
 
   // İki sıra arasında, en kötü konumdan `sides` dilim dönmeye yetecek boşluk:
-  // dönüş süresi + tepki payı (zamana çevrilip hızla çarpılır) + oyuncunun çarpışma bandı.
+  // dönüş süresi (hızlanma kaybı dahil) + tepki payı, hızla çarpılır + oyuncunun çarpışma bandı.
   function gapFor(sides, reactionScale = 1) {
     const v = wallSpeed() * CFG.speedLookahead;
-    return v * (sides * SEG / playerSpeed() + reaction() * reactionScale) + BAND;
+    const turnTime = sides * SEG / playerSpeed() + CFG.playerAccel * 0.5;
+    return v * (turnTime + reaction() * reactionScale) + BAND;
   }
 
   // =====================================================================
@@ -576,6 +579,7 @@
     t = 0; levelIdx = 0; lastPattern = '';
     flash = 0.2; shake = 0; deathZoom = 0; freeze = 0; overShown = false;
     angle = (rint(N) + 0.5) * SEG;
+    pVel = 0;
     cursor = spawnDist();
     rotDir = rsign(); rotTimer = 6 + Math.random() * 3; burst = 0;
     ui.menu.classList.add('hidden');
@@ -638,7 +642,7 @@
   const pointers = new Map();  // pointerId -> -1 (sol) / 1 (sağ); ekleme sırası = basma sırası
   let keyL = false, keyR = false, lastKey = 0, pendingFS = false;
 
-  function releaseInput() { pointers.clear(); keyL = keyR = false; }
+  function releaseInput() { pointers.clear(); keyL = keyR = false; pVel = 0; }
 
   function inputDir() {
     if (pointers.size) { let d = 0; for (const v of pointers.values()) d = v; return d; } // en son basılan parmak
@@ -762,10 +766,15 @@
     for (let guard = 0; cursor < sd && guard < 10; guard++) cursor += spawnPattern(cursor);
 
     // Oyuncu: yandan duvara girmeye çalışırsa durur, önden çarparsa ölür
+    // Basınca kısa sürede tam hıza çıkar, bırakınca anında durur, yön değişince sıfırdan başlar
     const dir = inputDir();
+    const ps = playerSpeed();
+    if (!dir || Math.sign(pVel) !== dir) pVel = 0;
     if (dir) {
+      pVel += dir * (ps / CFG.playerAccel) * dt;
+      if (Math.abs(pVel) > ps) pVel = dir * ps;
       const k0 = Math.floor(angle / SEG);
-      let a1 = angle + dir * playerSpeed() * dt;
+      let a1 = angle + pVel * dt;
       if (Math.floor(a1 / SEG) !== k0 && hitsWall(a1)) {
         a1 = dir > 0 ? (k0 + 1) * SEG - 1e-4 : k0 * SEG + 1e-4;
       }

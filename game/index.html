@@ -2,7 +2,7 @@
 <html lang="tr">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Oyun Odası</title>
   <style>
     * { box-sizing: border-box; }
@@ -75,10 +75,38 @@
     .ipucu { margin-top: 6px; font-size: 12px; color: #6f7687; }
     .ust { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 20px; }
     .ust h1 { margin: 0; }
-    ul { list-style: none; margin: 8px 0 0; padding: 0; }
-    li { padding: 10px 12px; border: 1px solid #2c303c; border-radius: 8px; margin-top: 8px; }
-    li.ben { border-color: #5b8cff; }
-    .gizli { display: none; }
+    .baslik-kucuk { font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #6f7687; text-align: center; margin-bottom: 10px; }
+    .oyun-dugme {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      width: 100%;
+      margin-top: 10px;
+      padding: 18px 16px;
+      border: 1px solid #3a4052;
+      border-radius: 12px;
+      background: #262b38;
+      color: #fff;
+      font-size: 18px;
+      font-weight: 700;
+      text-align: left;
+      cursor: pointer;
+    }
+    .oyun-dugme:hover { border-color: #5b8cff; }
+    .oyun-dugme:disabled { opacity: .6; cursor: default; }
+    .oyun-dugme small { font-size: 13px; font-weight: 500; color: #9aa1b2; white-space: nowrap; }
+    #oyun-alani {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100vh;
+      height: 100dvh;
+      z-index: 10;
+      background: #f6dcc2;
+      overscroll-behavior: none;
+    }
+    .gizli, #oyun-alani.gizli { display: none; }
   </style>
 </head>
 <body>
@@ -131,11 +159,17 @@
         <h1>Merhaba, <span id="ben-ad"></span></h1>
         <button type="button" class="ikincil-dugme" id="cikis">Çıkış</button>
       </div>
-      <div>Üyeler</div>
-      <ul id="uye-listesi"></ul>
+      <div class="baslik-kucuk">Oyunlar</div>
+      <button type="button" class="oyun-dugme" id="oyun-sosis">
+        <span>The Sosis Game</span>
+        <small id="sosis-bolum"></small>
+      </button>
+      <div class="hata" id="hata-ana"></div>
     </div>
 
   </div>
+
+  <div id="oyun-alani" class="gizli"></div>
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
@@ -144,7 +178,7 @@
       signInWithEmailAndPassword, signOut, deleteUser
     } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
     import {
-      getDatabase, ref, get, set, onValue
+      getDatabase, ref, get, set, runTransaction
     } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-database.js";
 
     const firebaseConfig = {
@@ -161,8 +195,7 @@
     const auth = getAuth(app);
     const db = getDatabase(app);
 
-    // Firebase e-posta istediği için kullanıcı adının sonuna bu eklenir.
-    // Gerçek bir posta kutusu değildir.
+    // Firebase Auth e-posta ister; kullanıcı adı bu sonekle e-postaya çevrilir (gerçek bir posta kutusu değildir).
     const EPOSTA_SONEKI = "@website-47054.firebaseapp.com";
     const epostaYap = (ad) => ad.toLowerCase() + EPOSTA_SONEKI;
 
@@ -172,9 +205,104 @@
       for (const e of EKRANLAR) $("ekran-" + e).classList.toggle("gizli", e !== ad);
     }
 
-    let mod = "giris";          // "giris" ya da "kayit"
-    let kayitSuruyor = false;   // kayıt adımları bitmeden ekran değişmesin
-    let uyeDinleyici = null;
+    let mod = "giris";          // "giris" | "kayit"
+    let kayitSuruyor = false;   // kayıt adımları bitmeden oturum değişikliği işlenmez
+    let ekranSirasi = 0;        // eski bir ekraniGuncelle sonucunun yenisini ezmemesi için
+    let sosisSeviye = 1;
+    let oyun = null;
+
+    /* ---------- İlerleme ---------- */
+    // Gelinen bölüm ilerleme/<uid>/sosis altında tutulur ve bu tarayıcıda yedeklenir.
+    // Sunucudaki değer yalnızca ileri gider (başka cihazdaki ilerleme ezilmez); sıfırlama hariç.
+    const yerelAnahtar = (uid) => "sosis-" + uid;
+    const ilerlemeRef = (uid) => ref(db, "ilerleme/" + uid + "/sosis");
+    const KAYIT_UYARI = "İlerleme sunucuya kaydedilemedi; şimdilik yalnızca bu cihazda duruyor.";
+    let kayitHatasi = false;
+
+    function seviyeGoster(uid, seviye) {
+      sosisSeviye = seviye;
+      localStorage.setItem(yerelAnahtar(uid), String(seviye));
+      $("sosis-bolum").textContent = "Bölüm " + seviye;
+    }
+    function kayitDurumu(hata, e) {
+      kayitHatasi = hata;
+      if (e) console.warn("İlerleme kaydedilemedi:", e);
+    }
+    async function ilerlemeIlerlet(uid, seviye) {
+      const sonuc = await runTransaction(ilerlemeRef(uid), (mevcut) => Math.max(Number(mevcut) || 1, seviye));
+      return Number(sonuc.snapshot.val()) || seviye;
+    }
+    async function ilerlemeOku(uid) {
+      const yerel = Number(localStorage.getItem(yerelAnahtar(uid))) || 1;
+      try {
+        const seviye = await ilerlemeIlerlet(uid, yerel);
+        kayitDurumu(false);
+        return seviye;
+      } catch (e) {
+        kayitDurumu(true, e);
+        return yerel;
+      }
+    }
+    function ilerlemeYaz(uid, seviye, sifirla) {
+      seviyeGoster(uid, seviye);
+      const is = sifirla ? set(ilerlemeRef(uid), seviye).then(() => seviye) : ilerlemeIlerlet(uid, seviye);
+      is.then((sunucu) => {
+        kayitDurumu(false);
+        if (sunucu > sosisSeviye) seviyeGoster(uid, sunucu);
+      }).catch((e) => kayitDurumu(true, e));
+    }
+
+    /* ---------- Oyunu aç / kapat ---------- */
+    const dokunmatik = window.matchMedia("(pointer: coarse)").matches;
+    // Telefonda oyun tam ekran ve yatay açılır; desteklenmiyorsa oyun "telefonu çevir" uyarısı gösterir.
+    async function yatayTamEkran(el) {
+      if (!dokunmatik) return;
+      try {
+        await el.requestFullscreen?.({ navigationUI: "hide" });
+        await screen.orientation?.lock?.("landscape");
+      } catch { /* desteklenmiyor */ }
+    }
+    function normalEkran() {
+      try { screen.orientation?.unlock?.(); } catch { /* desteklenmiyor */ }
+      if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+    }
+    const anaHataGoster = () => { $("hata-ana").textContent = kayitHatasi ? KAYIT_UYARI : ""; };
+
+    function oyunuKapat() {
+      oyun?.destroy();
+      oyun = null;
+      $("oyun-alani").classList.add("gizli");
+      document.querySelector(".kart").classList.remove("gizli");
+      normalEkran();
+      anaHataGoster();
+    }
+    // Her oyun kendi klasöründedir: game/<oyun>/<oyun>.js
+    async function sosisAc() {
+      const user = auth.currentUser;
+      if (!user || oyun) return;
+      const dugme = $("oyun-sosis"), alan = $("oyun-alani");
+      $("hata-ana").textContent = "";
+      dugme.disabled = true;
+      document.querySelector(".kart").classList.add("gizli");
+      alan.classList.remove("gizli");
+      yatayTamEkran(alan);
+      try {
+        const { startSosis } = await import("./sosis/sosis.js");
+        oyun = startSosis({
+          mount: alan,
+          unlocked: sosisSeviye,
+          level: sosisSeviye - 1,
+          onProgress: (seviye, sifirla) => ilerlemeYaz(user.uid, seviye, sifirla),
+          onExit: oyunuKapat
+        });
+      } catch (e) {
+        console.error(e);
+        oyunuKapat();
+        $("hata-ana").textContent = "Oyun yüklenemedi. İnternetini kontrol edip tekrar dene.";
+      } finally {
+        dugme.disabled = false;
+      }
+    }
 
     function modDegistir(yeni) {
       mod = yeni;
@@ -191,11 +319,12 @@
     $("sekme-giris").onclick = () => modDegistir("giris");
     $("sekme-kayit").onclick = () => modDegistir("kayit");
 
-    const izinYok = (e) => /permission[_ ]denied/i.test((e && e.code) + " " + (e && e.message));
+    class KullaniciHatasi extends Error {}
+    const izinYok = (e) => /permission[_ ]denied/i.test(`${e?.code} ${e?.message}`);
 
     function hataMesaji(e) {
-      if (e && e.ozel) return e.ozel;
-      switch (e && e.code) {
+      if (e instanceof KullaniciHatasi) return e.message;
+      switch (e?.code) {
         case "auth/email-already-in-use": return "Bu kullanıcı adı alınmış.";
         case "auth/weak-password": return "Şifre en az 6 karakter olmalı.";
         case "auth/invalid-credential":
@@ -205,50 +334,44 @@
         case "auth/network-request-failed": return "Bağlantı kurulamadı. İnternetini kontrol et.";
         case "auth/operation-not-allowed": return "Firebase'de Email/Password girişi açık değil.";
         case "auth/admin-restricted-operation": return "Firebase'de yeni kayıt kapalı.";
-        default: return "Bir hata oluştu: " + ((e && (e.code || e.message)) || "bilinmiyor");
+        default: return "Bir hata oluştu: " + (e?.code || e?.message || "bilinmiyor");
       }
     }
 
-    // Davet kodunu doğrulatır, sonra kullanıcı adını kaydeder.
+    // Davet kodunu veritabanı kurallarına doğrulatır, sonra kullanıcı adını kaydeder.
     async function uyeOl(user, kod, ad) {
       try {
         await set(ref(db, "uyeler/" + user.uid), kod);
       } catch (e) {
-        if (izinYok(e)) throw { ozel: "Davet kodu yanlış." };
-        throw e;
+        throw izinYok(e) ? new KullaniciHatasi("Davet kodu yanlış.") : e;
       }
       await set(ref(db, "kullanicilar/" + user.uid), { ad });
     }
 
     async function ekraniGuncelle(user) {
-      if (uyeDinleyici) { uyeDinleyici(); uyeDinleyici = null; }
-      if (!user) { goster("giris"); return; }
-
+      const sira = ++ekranSirasi;
+      if (!user) { oyunuKapat(); goster("giris"); return; }
       try {
         const uye = await get(ref(db, "uyeler/" + user.uid));
+        if (sira !== ekranSirasi) return;
         if (!uye.exists()) { goster("kod"); return; }
 
         const adRef = ref(db, "kullanicilar/" + user.uid);
-        let kayit = await get(adRef);
-        let ad = kayit.exists() ? kayit.val().ad : null;
+        const kayit = await get(adRef);
+        let ad = kayit.val()?.ad;
         if (!ad) {
           ad = user.email.split("@")[0];
           await set(adRef, { ad });
         }
+        const seviye = await ilerlemeOku(user.uid);
+        if (sira !== ekranSirasi) return;
         $("ben-ad").textContent = ad;
-
-        uyeDinleyici = onValue(ref(db, "kullanicilar"), (snap) => {
-          const liste = $("uye-listesi");
-          liste.replaceChildren();
-          snap.forEach((c) => {
-            const li = document.createElement("li");
-            li.textContent = (c.val() && c.val().ad) || "(isimsiz)";
-            if (c.key === user.uid) li.classList.add("ben");
-            liste.appendChild(li);
-          });
-        });
+        seviyeGoster(user.uid, seviye);
+        anaHataGoster();
         goster("ana");
       } catch (e) {
+        if (sira !== ekranSirasi) return;
+        console.error(e);
         goster("giris");
         $("hata-giris").textContent = hataMesaji(e);
       }
@@ -285,7 +408,7 @@
             try {
               await uyeOl(sonuc.user, kod, ad);
             } catch (e) {
-              // Kod yanlışsa hesabı geri sil ki kullanıcı adı boşa çıksın.
+              // Üyelik tamamlanmazsa hesap silinir; kullanıcı adı yeniden alınabilir.
               await deleteUser(sonuc.user).catch(() => {});
               throw e;
             }
@@ -316,6 +439,7 @@
       }
     });
 
+    $("oyun-sosis").onclick = sosisAc;
     $("cikis").onclick = () => signOut(auth);
     $("cikis2").onclick = () => signOut(auth);
   </script>

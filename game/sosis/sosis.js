@@ -594,6 +594,7 @@ const CSS = `
 .sg-rotate[hidden]{display:none}
 .sg-phone{width:44px;height:78px;border:4px solid #fff;border-radius:10px;animation:sg-rot 1.9s ease-in-out infinite}
 @keyframes sg-rot{0%,20%{transform:rotate(0)}60%,100%{transform:rotate(-90deg)}}
+@media (max-height:500px){.sg-hint{bottom:auto;top:max(62px,env(safe-area-inset-top));font-size:13px;padding:7px 14px}}
 @media (max-height:420px){.sg-panel{width:min(520px,100%);padding:10px 16px}.sg-btn{padding:7px;margin-top:5px}.sg-grid{grid-template-columns:repeat(17,1fr);gap:3px}.sg-grid button{border-radius:6px}.sg-panel h2{font-size:17px}.sg-sub{margin-top:6px}}
 `;
 
@@ -727,9 +728,9 @@ export function startSosis(opts) {
       <div class="sg-confirm" hidden>Tüm ilerlemen silinecek ve 1. bölümden başlayacaksın. Emin misin?
         <div><button class="sg-btn pri" data-act="reset-yes" type="button">Evet</button><button class="sg-btn" data-act="reset-no" type="button">Hayır</button></div>
       </div>
+      <button class="sg-btn" data-act="exit" type="button">Ana menüye dön</button>
       <div class="sg-sub">Bölümler</div>
       <div class="sg-grid"></div>
-      <button class="sg-btn" data-act="exit" type="button">Ana menüye dön</button>
     </div></div>
     <div class="sg-modal sg-win" hidden><div class="sg-panel">
       <h2>Tebrikler!</h2>
@@ -749,11 +750,19 @@ export function startSosis(opts) {
   /* ---------- Ses ---------- */
   let soundOn = localStorage.getItem('sosis-ses') !== '0';
   let actx = null;
-  function tone(f1, f2, dur, type = 'sine', vol = 0.14, delay = 0) {
+  // Mobil tarayıcılar (özellikle iOS) sesi yalnızca bir dokunuşun içinde başlatmaya izin verir.
+  function unlockAudio() {
     if (!soundOn) return;
     try {
       actx ??= new (window.AudioContext || window.webkitAudioContext)();
       if (actx.state === 'suspended') actx.resume();
+    } catch {
+      soundOn = false;
+    }
+  }
+  function tone(f1, f2, dur, type = 'sine', vol = 0.14, delay = 0) {
+    if (!soundOn || !actx) return;
+    try {
       const t = actx.currentTime + delay, o = actx.createOscillator(), g = actx.createGain();
       o.type = type; o.frequency.setValueAtTime(f1, t); o.frequency.exponentialRampToValueAtTime(Math.max(20, f2), t + dur);
       g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
@@ -908,7 +917,7 @@ export function startSosis(opts) {
   // Levhalar sosisin önünde ya da arkasında durduğu için perspektif kaymasını düzelt.
   function fitSprites() {
     if (!levelDef) return;
-    const d = baseDist / levelDef.cam.z, { cx, cy } = levelDef.cam;
+    const d = baseDist / levelDef.cam.z, cy = levelDef.cam.cy, cx = levelDef.cam.cx - shiftX;
     for (const s of spriteMeshes) {
       const k = (d - s.z) / d;
       s.m.position.set(cx + (s.x - cx) * k, cy + (s.y - cy) * k, s.z);
@@ -947,8 +956,8 @@ export function startSosis(opts) {
       addPlane(tex, def.sprite, !!def.data.front, true);
     }
     if (def.card) addPlane(cardTexture(def.card.text, def.card.w, def.card.h), def.card, false, false);
-    fitSprites();
     cam.x = def.cam.cx; cam.y = def.cam.cy; cam.k = 1;
+    resize();                         // bölüme göre (sol kenar, yakınlık) yerleşim değişebilir
     elCount.textContent = `${i + 1} / ${LEVELS.length}`;
     elTitle.textContent = def.name; elTitle.classList.remove('off');
     clearTimeout(titleTimer); titleTimer = setTimeout(() => elTitle.classList.add('off'), 2200);
@@ -980,20 +989,32 @@ export function startSosis(opts) {
   const baseDist = VIEW_H / 2 / Math.tan(FOV * Math.PI / 360);
   const cam = { x: 0, y: 0, k: 1 }, focus = { x: 0, y: 0, k: 1 };
   const coarse = window.matchMedia('(pointer: coarse)').matches;
+  let shiftX = 0;                     // geniş ekranda kameranın sola kayması (dünya birimi)
   function placeCamera() {
-    camera.position.set(cam.x, cam.y, baseDist / (levelDef ? levelDef.cam.z : 1) * cam.k);
-    camera.lookAt(cam.x, cam.y, 0);
+    const x = cam.x - shiftX * cam.k;
+    camera.position.set(x, cam.y, baseDist / (levelDef ? levelDef.cam.z : 1) * cam.k);
+    camera.lookAt(x, cam.y, 0);
   }
-  // Oyun alanı her zaman 16:9; artan yer fon rengiyle dolar.
+  // Oyun alanı 16:9'dur (bölüm görüntüleri bu alana göre). Ekran daha genişse (çoğu telefon) sahne
+  // sola doğru uzar ki tava ve çubuklar kesilmesin; sol kenara değen bir görüntü varsa ya da ekran
+  // daha uzunsa kalan yer fon rengiyle dolar.
   function resize() {
     const W = Math.max(1, mount.clientWidth), Hh = Math.max(1, mount.clientHeight);
-    let w = W, h = Math.round(W * 9 / 16);
-    if (h > Hh) { h = Hh; w = Math.round(Hh * 16 / 9); }
+    const touchesLeft = levelDef?.data.px && levelDef.data.px[0] <= 2;
+    const extend = W / Hh > 16 / 9 && !touchesLeft;
+    let w = W, h = Hh;
+    if (!extend) {
+      h = Math.round(W * 9 / 16);
+      if (h > Hh) { h = Hh; w = Math.round(Hh * 16 / 9); }
+    }
     Object.assign(canvas.style, { width: w + 'px', height: h + 'px', left: Math.round((W - w) / 2) + 'px', top: Math.round((Hh - h) / 2) + 'px' });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     renderer.setSize(w, h, false);
+    camera.aspect = w / h; camera.updateProjectionMatrix();
+    shiftX = extend ? (VIEW_H / 2 * camera.aspect - VIEW_W / 2) / (levelDef ? levelDef.cam.z : 1) : 0;
     rotateBlock = coarse && Hh > W;
     elRotate.hidden = !rotateBlock;
+    fitSprites();
     placeCamera();
     renderer.render(scene, camera);   // boyut değişince tuval silinir; duraklatılmışken de görüntü kalsın
   }
@@ -1011,6 +1032,7 @@ export function startSosis(opts) {
     if (e.target !== canvas && e.target !== root) return;
     e.preventDefault();
     root.setPointerCapture?.(e.pointerId);
+    unlockAudio();
     press();
   });
   on(root, 'pointerup', release);
@@ -1020,7 +1042,7 @@ export function startSosis(opts) {
   on(document, 'visibilitychange', release);
   on(root, 'contextmenu', (e) => e.preventDefault());
   on(window, 'keydown', (e) => {
-    if (e.code === 'Space') { e.preventDefault(); if (!e.repeat) press(); }
+    if (e.code === 'Space') { e.preventDefault(); if (!e.repeat) { unlockAudio(); press(); } }
     else if (e.code === 'Escape') { if (elSettings.hidden) openSettings(); else closeSettings(); }
   });
   on(window, 'keyup', (e) => { if (e.code === 'Space') { e.preventDefault(); release(); } });
@@ -1057,6 +1079,7 @@ export function startSosis(opts) {
         soundOn = !soundOn;
         localStorage.setItem('sosis-ses', soundOn ? '1' : '0');
         renderSettings();
+        unlockAudio();
         tone(660, 880, 0.1, 'triangle');
         break;
       case 'reset': elConfirm.hidden = false; break;

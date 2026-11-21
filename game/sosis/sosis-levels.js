@@ -60,7 +60,7 @@ export const LEVEL_DATA = [
   {"key": "envelope", "title": "ZARF", "img": "057.webp", "px": [658, 453, 193, 138], "col": "057.png"},
   {"key": "moai", "title": "MOAİ", "img": "058.webp", "px": [686, 211, 367, 508], "col": "058.png"},
   {"key": "lollipop", "title": "LOLİPOP", "img": "059.webp", "px": [410, 543, 144, 160], "col": "059.png", "cam": [0.759, -0.1, -2.12]},
-  {"key": "ramp", "title": "RAMPA", "img": "060.webp", "px": [1, 452, 863, 217], "col": "060.png", "cam": [0.76, 2.79, -1.23]},
+  {"key": "ramp", "title": "RAMPA", "img": "060.webp", "px": [1, 453, 863, 215], "col": "060.png", "cam": [0.76, 2.79, -1.23]},
   {"key": "eyeball", "title": "GÖZ", "img": "061.webp", "px": [678, 228, 386, 378], "col": "061.png"},
   {"key": "candycane", "title": "BASTON ŞEKER", "img": "062.webp", "px": [576, 240, 314, 350], "col": "062.png"},
   {"key": "sock", "title": "ÇORAP", "img": "063.webp", "px": [722, 258, 332, 334], "col": "063.png"},

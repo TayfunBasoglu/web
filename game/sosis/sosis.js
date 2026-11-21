@@ -37,11 +37,13 @@ const KICK = 19, KICK_DIR = 0.32;
 
 // Çubuklar: sosisi üst ucundan tutup soldan içeri getirir. Sosis dikey asılı girer, sonra
 // bırakılana kadar ileri geri sallanır; ilk salınım geniştir, sonra daha dar bir salınımla sürer.
-// Bırakılınca sallanma hızını korur.
+// Bırakılınca hafif bir sallanma hızıyla tavaya düşer; tavayı ıskalayacak kadar hızlı gidemez.
 const GRIP_X = -7.06, GRIP_Y = 3.86;
 const GRIP_IN_FROM = 3.6, GRIP_IN = 0.8;
 const HOLD_MID = -0.5, HOLD_AMP0 = 0.85, HOLD_AMP = 0.3, HOLD_DECAY = 1.2, HOLD_PERIOD = 1.3;
-const GRIP_MIN = 0.35;               // bu süreden önce bırakılamaz
+const GRIP_MIN = GRIP_IN;            // çubuklar yerine oturmadan bırakılamaz
+const DROP_KEEP = 0.3;               // bırakınca sallanma hızından kalan pay
+const DROP_VX_MIN = -0.6, DROP_VX_MAX = 1.0, DROP_VY_MAX = 0.5;   // bırakma anındaki ağırlık merkezi hız sınırları
 const holdAngle = (t) => HOLD_MID - (HOLD_AMP + (HOLD_AMP0 - HOLD_AMP) * Math.exp(-t / HOLD_DECAY)) * Math.cos(2 * Math.PI * t / HOLD_PERIOD);
 
 const smooth = (s) => s * s * (3 - 2 * s), dsmooth = (s) => 6 * s * (1 - s);
@@ -165,6 +167,8 @@ export class World {
     }
     this.state = 'hold';                // hold | play | win | lost
     this.glued = null;
+    this.usedPan = false;               // bırakıldıktan sonra tavaya değdi mi (değmeden kazanılamaz)
+    this.tossed = false;                // tava sosisi fırlattı mı (Ay'ın çekimi bundan sonra başlar)
     this.holdT = 0;
     this.panT = 0; this.lockT = 0; this.airT = 0;
     this.winT = 0; this.idleT = 0; this.outT = 0; this.lostT = 0;
@@ -188,20 +192,38 @@ export class World {
     return Math.hypot(vx, vy) / (N * H);
   }
 
-  // Dokunuş: sosis tutuluyorsa bırakılır; tava kalkar ve basılı tutuldukça yukarıda bekler.
+  // Dokunuş: sosis tutuluyorsa yalnızca bırakılır (tava oynamaz, hemen sonraki dokunuş tavayı kaldırır).
+  // Sonraki dokunuşlarda tava kalkar ve basılı tutuldukça yukarıda bekler; inerken basılırsa
+  // bulunduğu açıdan yeniden kalkar.
   hit(hold = false) {
     if (this.state !== 'play' && this.state !== 'hold') return false;
-    let did = false;
     if (this.state === 'hold') {
       if (this.holdT < GRIP_MIN) return false;
-      this.state = 'play'; did = true;  // noktalar sallanma hızlarıyla serbest kalır
+      // Sallanma hızının yalnızca küçük bir payı kalır; ağırlık merkezinin hızı sınırlanır.
+      let vx = 0, vy = 0;
+      for (let i = 0; i < N; i++) { vx += this.x[i] - this.px[i]; vy += this.y[i] - this.py[i]; }
+      vx /= N * H; vy /= N * H;
+      const cvx = Math.max(DROP_VX_MIN, Math.min(DROP_VX_MAX, vx * DROP_KEEP)), cvy = Math.min(DROP_VY_MAX, vy * DROP_KEEP);
+      for (let i = 0; i < N; i++) {
+        const rvx = (this.x[i] - this.px[i]) / H - vx, rvy = (this.y[i] - this.py[i]) / H - vy;
+        this.px[i] = this.x[i] - (cvx + rvx * DROP_KEEP) * H;
+        this.py[i] = this.y[i] - (cvy + rvy * DROP_KEEP) * H;
+      }
+      this.state = 'play';
+      return true;
     }
-    if (this.swing < 0) {
-      this.swing = 0; this.panHeld = hold; did = true;
-      this.events.push({ type: 'swing' });
-      this._kick();
+    const top = SWING_UP + SWING_STAY;
+    if (this.swing >= 0 && this.swing < top + 1e-9) return false;    // tava zaten kalkıyor / yukarıda
+    if (this.swing < 0) this.swing = 0;
+    else {
+      // İniş sırasında: aynı açıya karşılık gelen kalkış anından devam et (açı sıçramaz).
+      const f = 1 - smooth(Math.min(1, (this.swing - top) / SWING_DOWN));
+      this.swing = SWING_UP * (0.5 - Math.sin(Math.asin(1 - 2 * f) / 3));
     }
-    return did;
+    this.panHeld = hold;
+    this.events.push({ type: 'swing' });
+    this._kick();
+    return true;
   }
 
   release() { this.panHeld = false; }
@@ -223,6 +245,7 @@ export class World {
       this.py[i] = this.y[i] - (vt * st + k * kc) * H;
       this.kv[i] = k;
       this.kickT = 0.08; this.lockT = 0.1; this.panT = 0;
+      if (this.state === 'play') this.tossed = this.usedPan = true;
     }
   }
 
@@ -289,7 +312,7 @@ export class World {
     }
 
     const drag = holding ? 0.985 : 1;
-    const rad = this.radial, gl = this.glued;
+    const rad = this.tossed ? this.radial : null, gl = this.glued;
     for (let i = 0; i < N; i++) {
       let gx = 0, gy = -GRAV;
       if (rad) { const dx = rad[0] - x[i], dy = rad[1] - y[i], l = Math.hypot(dx, dy) || 1; gx = GRAV * dx / l; gy = GRAV * dy / l; }
@@ -392,8 +415,9 @@ export class World {
     if (!panTouch) this.panT -= H;
 
     if (this.state !== 'play') return;
+    if (pPts > 0) this.usedPan = true;
 
-    if (this.glue && !this.glued) {
+    if (this.glue && !this.glued && this.usedPan) {
       const [gx0, gy0, gx1, gy1] = this.glue;
       for (let i = 0; i < N; i++) {
         if (cs[i] < 0 || S[cs[i]].sh !== 'field') continue;
@@ -408,10 +432,11 @@ export class World {
 
     const c = this.com(), V = this.view;
     if (c.y < this.killY || Math.abs(c.x - V.cx) > V.hw + 3 || (this.radial && c.y > V.cy + V.hh + 2)) { this._lose('fall'); return; }
-    // Kazanmak için sosis nesneye değmeli (tavaya değmeden) ve durmuş olmalı; üstünden kayıp
-    // düşen sosis sayılmaz. Yapışmış sosis sallansa da sayılır.
+    // Kazanmak için sosis bırakıldıktan sonra tavaya uğramış olmalı, nesneye değmeli (tavaya değmeden)
+    // ve durmuş olmalı; üstünden kayıp düşen sosis sayılmaz. Yapışmış sosis sallansa da sayılır.
+    // Tavaya uğramadan nesneye düşen sosis ıska sayılır ve yeniden gelir.
     const inView = Math.abs(c.x - V.cx) < V.hw && c.y > V.cy - V.hh;
-    const touching = pPts === 0 && inView && (this.glued || tPts > 0);
+    const touching = this.usedPan && pPts === 0 && inView && (this.glued || tPts > 0);
     const speed = this.maxSpeed();
     const still = this.glued || (speed < STILL_PT && this.comSpeed() < STILL_COM);
     if (touching && still) this.winT += H;

@@ -18,8 +18,8 @@ const N = 7, RAD = 0.27, SEG = 0.34;
 const REST = 0.22;                   // çarpışmada sekme katsayısı
 const K_BEND = 0.1, K_BEND2 = 0.05;
 const BEND2 = 2 * SEG * 0.99813, BEND3 = 3 * SEG * 0.99503;   // durgun hâlde hafif kavis
-const NEED = 2;                      // kazanmak için nesneye değmesi gereken nokta sayısı
-const WIN_HOLD = 0.9;                // bu süre boyunca nesnede kalırsa bölüm biter
+const WIN_HOLD = 1.0;                // sosis nesnenin üstünde bu kadar süre durursa bölüm biter
+const STILL_COM = 0.3, STILL_PT = 1.2;   // "durmuş" sayılmak için ağırlık merkezi ve en hızlı nokta hız sınırı
 const MAX_DEPEN = 15, DEPEN_STEP = MAX_DEPEN * H;
 
 // Tava. Ölçüler dönme noktasına (sapın tavaya birleştiği yer) göredir.
@@ -30,9 +30,10 @@ const PAN_MU = 0.04;
 const REST_TILT = -0.216;            // dururken uç aşağıda
 const SWING_MAX = 0.4, SWING_UP = 0.07, SWING_DOWN = 0.2, SWING_STAY = 0.01;
 const PAN_PUSH = 0.8;                // tavanın gövdesinden sosise geçen en yüksek açısal hız
-// Vuruş: tava yüzeyine dik bir itiş; hız noktanın dönme noktasına uzaklığıyla artar.
-// Sosisin tava boyunca kayma hızı korunur, böylece hızlı kayan sosis daha yatık ve uzağa gider.
-const KICK = 30;
+// Vuruş: dikeyden KICK_DIR kadar ileri bir itiş; hız noktanın dönme noktasına uzaklığıyla artar
+// (uçta en güçlü). Sosisin tava boyunca kayma hızı korunur, böylece hızlı kayarken vurulan sosis
+// daha yatık ve uzağa gider.
+const KICK = 19, KICK_DIR = 0.32;
 
 // Çubuklar: sosisi üst ucundan tutup soldan içeri getirir.
 const GRIP_X = -7.06, GRIP_Y = 3.86;
@@ -177,6 +178,12 @@ export class World {
     return m;
   }
 
+  comSpeed() {
+    let vx = 0, vy = 0;
+    for (let i = 0; i < N; i++) { vx += this.x[i] - this.px[i]; vy += this.y[i] - this.py[i]; }
+    return Math.hypot(vx, vy) / (N * H);
+  }
+
   // Dokunuş: sosis tutuluyorsa bırakılır; tava kalkar ve basılı tutuldukça yukarıda bekler.
   hit(hold = false) {
     if (this.state !== 'play' && this.state !== 'hold') return false;
@@ -205,7 +212,7 @@ export class World {
   // bölgedeyse yalnızca o kısım vurulur; sosis döner ve daha zayıf gider.
   _kick() {
     const ct = Math.cos(REST_TILT), st = Math.sin(REST_TILT), tipU = PAN_CX + PAN_RIM;
-    const ks = -st, kc = ct;
+    const ks = Math.sin(KICK_DIR), kc = Math.cos(KICK_DIR);
     for (let i = 0; i < N; i++) {
       this.kv[i] = 0;
       const dx = this.x[i] - this.pvx, dy = this.y[i] - this.pvy;
@@ -270,6 +277,7 @@ export class World {
       if (this.lostT <= 0) this.spawn();
       return;
     }
+    if (this.state === 'win') return;   // kazanınca sosis olduğu yerde kalır
 
     // Tutulurken uçtaki iki nokta çubuklara bağlıdır, gerisi kendi ağırlığıyla sarkar.
     const holding = this.state === 'hold';
@@ -402,8 +410,14 @@ export class World {
 
     const c = this.com(), V = this.view;
     if (c.y < this.killY || Math.abs(c.x - V.cx) > V.hw + 3 || (this.radial && c.y > V.cy + V.hh + 2)) { this._lose('fall'); return; }
-    const ok = pPts === 0 && (this.glued || tPts >= NEED);
-    if (ok) this.winT += H; else this.winT = Math.max(0, this.winT - 3 * H);
+    // Kazanmak için sosis nesneye değmeli (tavaya değmeden) ve durmuş olmalı; üstünden kayıp
+    // düşen sosis sayılmaz. Yapışmış sosis sallansa da sayılır.
+    const inView = Math.abs(c.x - V.cx) < V.hw && c.y > V.cy - V.hh;
+    const touching = pPts === 0 && inView && (this.glued || tPts > 0);
+    const speed = this.maxSpeed();
+    const still = this.glued || (speed < STILL_PT && this.comSpeed() < STILL_COM);
+    if (touching && still) this.winT += H;
+    else if (!touching) this.winT = Math.max(0, this.winT - 3 * H);
     if (this.winT >= WIN_HOLD) {
       this.state = 'win';
       this.events.push({ type: 'win' });
@@ -411,8 +425,8 @@ export class World {
     }
     if (this.panT > 0) { this.outT = 0; this.idleT = 0; return; }
     this.outT += H;
-    if (!ok && this.maxSpeed() < 0.35) this.idleT += H; else this.idleT = 0;
-    if (this.idleT > 1.0 || (this.outT > 9 && !ok)) this._lose('miss');
+    if (!touching && speed < 0.35) this.idleT += H; else this.idleT = 0;
+    if (this.idleT > 1.0 || (this.outT > 9 && !touching)) this._lose('miss');
   }
 }
 
@@ -1001,6 +1015,9 @@ export function startSosis(opts) {
   });
   on(root, 'pointerup', release);
   on(root, 'pointercancel', release);
+  // Basılıyken pencere değişirse bırakma olayı gelmez; tava yukarıda takılı kalmasın.
+  on(window, 'blur', release);
+  on(document, 'visibilitychange', release);
   on(root, 'contextmenu', (e) => e.preventDefault());
   on(window, 'keydown', (e) => {
     if (e.code === 'Space') { e.preventDefault(); if (!e.repeat) press(); }

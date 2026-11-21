@@ -178,7 +178,7 @@
       signInWithEmailAndPassword, signOut, deleteUser
     } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
     import {
-      getDatabase, ref, get, set, runTransaction
+      getDatabase, ref, get, set, runTransaction, serverTimestamp
     } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-database.js";
 
     const firebaseConfig = {
@@ -250,6 +250,21 @@
         kayitDurumu(false);
         if (sunucu > sosisSeviye) seviyeGoster(uid, sunucu);
       }).catch((e) => kayitDurumu(true, e));
+    }
+
+    /* ---------- Son giriş ---------- */
+    // Her kullanıcının yalnızca en son giriş zamanı tutulur: sonGiris/<uid> = { ad, zaman, metin }.
+    // zaman sunucu saatidir (ms); metin aynı anın Türkiye saatiyle okunur hâlidir.
+    // Oturumu açık kalan kullanıcının siteyi yeniden açması da giriş sayılır (sayfa başına bir kez).
+    const saatBicimi = new Intl.DateTimeFormat("tr-TR", {
+      timeZone: "Europe/Istanbul", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit"
+    });
+    let sonGirisYazilan = null;
+    function sonGirisKaydet(uid, ad) {
+      if (sonGirisYazilan === uid) return;
+      sonGirisYazilan = uid;
+      set(ref(db, "sonGiris/" + uid), { ad, zaman: serverTimestamp(), metin: saatBicimi.format(new Date()) })
+        .catch((e) => { sonGirisYazilan = null; console.warn("Son giriş kaydedilemedi:", e); });
     }
 
     /* ---------- Oyunu aç / kapat ---------- */
@@ -350,7 +365,7 @@
 
     async function ekraniGuncelle(user) {
       const sira = ++ekranSirasi;
-      if (!user) { oyunuKapat(); goster("giris"); return; }
+      if (!user) { sonGirisYazilan = null; oyunuKapat(); goster("giris"); return; }
       try {
         const uye = await get(ref(db, "uyeler/" + user.uid));
         if (sira !== ekranSirasi) return;
@@ -366,6 +381,7 @@
         const seviye = await ilerlemeOku(user.uid);
         if (sira !== ekranSirasi) return;
         $("ben-ad").textContent = ad;
+        sonGirisKaydet(user.uid, ad);
         seviyeGoster(user.uid, seviye);
         anaHataGoster();
         goster("ana");

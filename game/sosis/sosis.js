@@ -35,12 +35,14 @@ const PAN_PUSH = 0.8;                // tavanın gövdesinden sosise geçen en y
 // daha yatık ve uzağa gider.
 const KICK = 19, KICK_DIR = 0.32;
 
-// Çubuklar: sosisi üst ucundan tutup soldan içeri getirir.
+// Çubuklar: sosisi üst ucundan tutup soldan içeri getirir. Sosis dikey asılı girer, sonra
+// bırakılana kadar ileri geri sallanır; ilk salınım geniştir, sonra daha dar bir salınımla sürer.
+// Bırakılınca sallanma hızını korur.
 const GRIP_X = -7.06, GRIP_Y = 3.86;
 const GRIP_IN_FROM = 3.6, GRIP_IN = 0.8;
-const HOLD_A0 = -1.35, HOLD_A1 = -0.56;
+const HOLD_MID = -0.5, HOLD_AMP0 = 0.85, HOLD_AMP = 0.3, HOLD_DECAY = 1.2, HOLD_PERIOD = 1.3;
 const GRIP_MIN = 0.35;               // bu süreden önce bırakılamaz
-const DROP_SPIN = -1.3;
+const holdAngle = (t) => HOLD_MID - (HOLD_AMP + (HOLD_AMP0 - HOLD_AMP) * Math.exp(-t / HOLD_DECAY)) * Math.cos(2 * Math.PI * t / HOLD_PERIOD);
 
 const smooth = (s) => s * s * (3 - 2 * s), dsmooth = (s) => 6 * s * (1 - s);
 
@@ -154,10 +156,12 @@ export class World {
 
   spawn() {
     this.gx = GRIP_X - GRIP_IN_FROM; this.gy = GRIP_Y;
+    const a = holdAngle(0);
+    this.hdx = Math.cos(a) * SEG; this.hdy = Math.sin(a) * SEG;
     for (let i = 0; i < N; i++) {
       const d = (N - 1 - i) * SEG;      // son nokta çubukların tuttuğu uç
-      this.x[i] = this.px[i] = this.gx + Math.cos(HOLD_A0) * d;
-      this.y[i] = this.py[i] = this.gy + Math.sin(HOLD_A0) * d;
+      this.x[i] = this.px[i] = this.gx + Math.cos(a) * d;
+      this.y[i] = this.py[i] = this.gy + Math.sin(a) * d;
     }
     this.state = 'hold';                // hold | play | win | lost
     this.glued = null;
@@ -190,13 +194,7 @@ export class World {
     let did = false;
     if (this.state === 'hold') {
       if (this.holdT < GRIP_MIN) return false;
-      const c = this.com();
-      for (let i = 0; i < N; i++) {
-        const rx = this.x[i] - c.x, ry = this.y[i] - c.y;
-        this.px[i] = this.x[i] + DROP_SPIN * ry * H;
-        this.py[i] = this.y[i] - DROP_SPIN * rx * H;
-      }
-      this.state = 'play'; did = true;
+      this.state = 'play'; did = true;  // noktalar sallanma hızlarıyla serbest kalır
     }
     if (this.swing < 0) {
       this.swing = 0; this.panHeld = hold; did = true;
@@ -281,13 +279,13 @@ export class World {
 
     // Tutulurken uçtaki iki nokta çubuklara bağlıdır, gerisi kendi ağırlığıyla sarkar.
     const holding = this.state === 'hold';
-    const gpx = this.gx;
+    const gpx = this.gx, phdx = this.hdx, phdy = this.hdy;
     let hdx = 0, hdy = 0;
     if (holding) {
       this.holdT += H;
       this.gx = GRIP_X - GRIP_IN_FROM * (1 - smooth(Math.min(1, this.holdT / GRIP_IN)));
-      const a = HOLD_A0 + (HOLD_A1 - HOLD_A0) * smooth(Math.min(1, this.holdT / (GRIP_IN + 0.15)));
-      hdx = Math.cos(a) * SEG; hdy = Math.sin(a) * SEG;
+      const a = holdAngle(this.holdT);
+      hdx = this.hdx = Math.cos(a) * SEG; hdy = this.hdy = Math.sin(a) * SEG;
     }
 
     const drag = holding ? 0.985 : 1;
@@ -356,7 +354,7 @@ export class World {
     }
     if (holding) {
       x[N - 1] = this.gx; y[N - 1] = this.gy; px[N - 1] = gpx; py[N - 1] = this.gy; cs[N - 1] = -1;
-      x[N - 2] = this.gx + hdx; y[N - 2] = this.gy + hdy; px[N - 2] = gpx + hdx; py[N - 2] = this.gy + hdy; cs[N - 2] = -1;
+      x[N - 2] = this.gx + hdx; y[N - 2] = this.gy + hdy; px[N - 2] = gpx + phdx; py[N - 2] = this.gy + phdy; cs[N - 2] = -1;
     }
     if (gl) { x[gl.i] = px[gl.i] = gl.x; y[gl.i] = py[gl.i] = gl.y; cs[gl.i] = -1; }
 
@@ -849,6 +847,11 @@ export function startSosis(opts) {
   sausMesh.frustumCulled = false;
   const knotGeo = keep(new THREE.SphereGeometry(0.06, 10, 8));
   const knotA = new THREE.Mesh(knotGeo, mats.knot), knotB = new THREE.Mesh(knotGeo, mats.knot);
+  // Tava ve çubuklar 3B'dir; tam karşıdan bakınca tavanın ön duvarı sosisin önüne düşer ve sosis
+  // kenardan geçerken duvarın içinden geçiyormuş gibi görünür. Sosis bu yüzden derinlik testi olmadan,
+  // düz nesnelerden sonra çizilir; önündeki kap görüntüleri (saydam geçiş) yine üstünde kalır.
+  mats.sausage.depthTest = false; mats.knot.depthTest = false;
+  sausMesh.renderOrder = knotA.renderOrder = knotB.renderOrder = 10;
   const sausage = new THREE.Group();
   sausage.add(sausMesh, knotA, knotB);
   scene.add(sausage);

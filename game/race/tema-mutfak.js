@@ -356,7 +356,7 @@ export function tema(A) {
       kutu(D, 180, 4, 90, M.masa, mx, 71, mz, { recv: true });
       kutu(D, 166, 8, 3, M.masa, mx, 63, mz - 40); kutu(D, 166, 8, 3, M.masa, mx, 63, mz + 40);
       kutu(D, 3, 8, 76, M.masa, mx - 82, 63, mz); kutu(D, 3, 8, 76, M.masa, mx + 82, 63, mz);
-      for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) mk(D, cyl(c(2.6), c(3.2), c(71), 6), M.masa, c(mx + sx * 84), c(35.5), c(mz + sz * 39), { recv: true });
+      for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) mk(D, cyl(c(2.6), c(3.2), c(71), 18), M.masa, c(mx + sx * 84), c(35.5), c(mz + sz * 39), { recv: true });
       golge(D, c(mx), c(mz), c(120), c(70), .38);
       // masadaki eşyalar (uzaktan görünür)
       for (const [x, z] of [[600, 455], [690, 515], [560, 510]]) { mk(D, cyl(c(12), c(8), c(2), 28), M.seramik, c(x), c(76), c(z)); }
@@ -382,7 +382,8 @@ export function tema(A) {
       }
       mk(D, cyl(c(7), c(7), c(.5), 24), new THREE.MeshStandardMaterial({ color: 0x9fc6d8, roughness: .02, metalness: .2, envMap: ENV }), c(285), c(3.5), c(722), { cast: false });
       const mama = new THREE.InstancedMesh(new THREE.DodecahedronGeometry(c(.8), 0), mat('#7a4a2a', { roughness: .9, flatShading: true }), 40);
-      for (let i = 0; i < 40; i++) { const a = srand() * 7, r = i < 28 ? srand() * 6 : 10 + srand() * 25; dummy.position.set(c(250 + Math.cos(a) * r), i < 28 ? c(3.5) : c(.5), c(718 + Math.sin(a) * r)); dummy.rotation.set(srand() * 3, srand() * 3, 0); dummy.scale.setScalar(1); dummy.updateMatrix(); mama.setMatrixAt(i, dummy.matrix); }
+      // mama yalnızca kabın içinde (yere saçılmış işlevsiz nesne yok)
+      for (let i = 0; i < 40; i++) { const a = srand() * 7, r = srand() * 6; dummy.position.set(c(250 + Math.cos(a) * r), c(3.5), c(718 + Math.sin(a) * r)); dummy.rotation.set(srand() * 3, srand() * 3, 0); dummy.scale.setScalar(1); dummy.updateMatrix(); mama.setMatrixAt(i, dummy.matrix); }
       mama.castShadow = true; D.add(mama);
       golge(D, c(bx), c(bz), c(36), c(36), .4);
       // köşede kova ve paspas
@@ -391,26 +392,8 @@ export function tema(A) {
       golge(D, c(930), c(705), c(22), c(22), .4);
     }
 
-    /* --- yerdeki küçük şeyler: kırıntılar, bezelyeler, kaşık, kapak, oyuncak blok --- */
-    {
-      const kir = new THREE.InstancedMesh(new THREE.DodecahedronGeometry(1, 0), mat('#d9b27a', { roughness: 1, flatShading: true }), 220);
-      for (let i = 0; i < 220; i++) {
-        const t = srand(); let x, z;
-        if (t < .5) { x = 560 + srand() * 170; z = 430 + srand() * 110; } else if (t < .75) { x = 120 + srand() * 300; z = 75 + srand() * 40; } else { frameAt(srand() * L, F1); const s = (srand() < .5 ? -1 : 1) * (HW + 5 + srand() * 10); x = (F1.p.x + F1.r.x * s) / K; z = (F1.p.z + F1.r.z * s) / K; }
-        dummy.position.set(c(x), .25, c(z)); dummy.rotation.set(srand() * 3, srand() * 3, srand() * 3); dummy.scale.setScalar(.2 + srand() * .55); dummy.updateMatrix(); kir.setMatrixAt(i, dummy.matrix);
-      }
-      kir.receiveShadow = true; D.add(kir);
-      const bez = new THREE.InstancedMesh(sph(c(.45), 10, 8), mat('#6aa53a', { roughness: .55 }), 14);
-      for (let i = 0; i < 14; i++) { dummy.position.set(c(570 + srand() * 140), c(.45), c(420 + srand() * 25 + (i % 2) * 105)); dummy.rotation.set(0, 0, 0); dummy.scale.setScalar(1); dummy.updateMatrix(); bez.setMatrixAt(i, dummy.matrix); }
-      bez.castShadow = true; D.add(bez);
-      // tahta kaşık
-      { const g = new THREE.Group(); g.position.set(c(420), c(.6), c(122)); g.rotation.y = .12; D.add(g);
-        mk(g, box(c(22), c(.9), c(1.8)), M.masa, c(-6), 0, 0); mk(g, sph(c(3.2), 16, 8), M.masa, c(8), 0, 0, { s: [1.3, .25, 1] }); }
-      // şişe kapağı, oyuncak blok, kalem
-      mk(D, cyl(c(1.6), c(1.6), c(.6), 20), mat('#c8322d', { roughness: .35, metalness: .4 }), c(745), c(.3), c(170));
-      { const g = new THREE.Group(); g.position.set(c(860), 0, c(520)); g.rotation.y = .5; D.add(g); kutu(g, 4, 4, 4, mat('#3a7bd5', { roughness: .45 }), 0, 0, 0); for (const [x, z] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) mk(g, cyl(c(.6), c(.6), c(.5), 12), mat('#3a7bd5', { roughness: .45 }), c(x), c(4.25), c(z)); }
-      { const g = new THREE.Group(); g.position.set(c(62), c(.4), c(560)); g.rotation.y = .9; D.add(g); mk(g, cyl(c(.4), c(.4), c(17), 6), mat('#f0b829', { roughness: .5 }), 0, 0, 0, { r: [0, 0, Math.PI / 2] }); mk(g, new THREE.ConeGeometry(c(.4), c(1.6), 6).rotateZ(-Math.PI / 2), mat('#e9cf9c'), c(9.3), 0, 0); }
-    }
+    // Yolun üstünde ve kenarında işlevi olmayan nesne bırakılmaz (kırıntı, bezelye, kaşık vb. kaldırıldı):
+    // yolda görünen her şey ya yavaşlatır (kırmızı) ya hızlandırır (yeşil).
 
     /* --- karton boru --- */
     {
@@ -634,7 +617,7 @@ export function tema(A) {
     { name: 'DOLAP DİBİ', sub: 'Dev mutfak dolaplarının dibinden', test: () => true },
   ];
   const bolgeAdi = p => bolgeler.find(b => b.test(p)).name;
-  const Z = { zone: {}, sosisT: 0, buzT: 0, kofteT: 0, yunT: 0, karanlik: false, buharT: 0, sisT: 0 };
+  const Z = { karanlik: false, buharT: 0, sisT: 0 };
   // hepsi tek şeride sığar (aynı anda iki şeridi kapatmaz)
   const KOFTE_R = 1.9, YUN_R = 1.9, BUZ_B = 3.0;
   const FG = {
@@ -651,13 +634,16 @@ export function tema(A) {
     const aktif = raceT > 0 && !me.finished, reg = bolgeAdi(p);
     // tavadan sosis tepeden düşer: yalnızca ocak başındayken. Yandan gelenler (buz, köfte, yün) ise
     // o noktaya yaklaşırken önceden yola çıkar ki yolun ortasına vardığında sen hâlâ uzakta ol.
-    const ocak = aktif && reg === 'OCAK BAŞI';
-    if (ocak && !Z.zone.ocak) Z.sosisT = 1.2;
-    Z.zone = { ocak };
-    if (ocak && (Z.sosisT -= dt) <= 0) { sosisFirlat(); Z.sosisT = rand(3.2, 4.8); }
-    if (aktif && (Z.buzT -= dt) <= 0) { const s = ileride(buzA, buzB, 340); if (s !== null) { buzKaydir(s); Z.buzT = rand(5, 7); } else Z.buzT = .5; }
-    if (aktif && (Z.kofteT -= dt) <= 0) { const s = ileride(masa.a, masa.b, 340); if (s !== null) { kofteDusur(s); Z.kofteT = rand(4.5, 6.5); } else Z.kofteT = .5; }
-    if (aktif && (Z.yunT -= dt) <= 0) { const s = ileride(kediA, kediB, 340); if (s !== null) { yunYumagi(s); Z.yunT = rand(5, 8); } else Z.yunT = .5; }
+    // Olaylar ortak sıraya uyar (iyi/kötü fark etmez, iki olay arasında 10–15 sn): sıra gelince o an
+    // yapılabilecek olaylardan biri seçilir; hiçbiri yoksa sıra yol engeline geçer.
+    if (aktif && A.bolgeSirasi()) {
+      const secenek = [];
+      if (reg === 'OCAK BAŞI') secenek.push(() => sosisFirlat());
+      const sb = ileride(buzA, buzB, 340); if (sb !== null) secenek.push(() => buzKaydir(sb));
+      const sk = ileride(masa.a, masa.b, 340); if (sk !== null) secenek.push(() => kofteDusur(sk));
+      const sy = ileride(kediA, kediB, 340); if (sy !== null) secenek.push(() => yunYumagi(sy));
+      if (secenek.length) { secenek[Math.floor(Math.random() * secenek.length)](); A.olayBasladi(); } else A.bolgeOlayiYok();
+    }
     // borunun içi loş: pozlama düşer, farlar yanar, motor sesi yankılanır
     const k = boruK(me.s);
     A.SES.yanki(k);
@@ -668,7 +654,7 @@ export function tema(A) {
     if (RG.kapi && p.x > c(520) && p.x < c(860) && p.z < c(260) && (Z.sisT -= dt) <= 0) { Z.sisT = .1; emit(c(612) + rand(0, 18), rand(2, 30), c(68) + rand(0, 6), rand(-2, 2), rand(-1.5, -.5), rand(4, 9), rand(4, 7), rand(1.5, 2.4)); }
     if (kediGovde) kediGovde.scale.y = .62 + Math.sin(A.time * 2.2) * .025;
   }
-  function olaySifirla() { Z.zone = {}; Z.karanlik = false; Z.buzT = Z.kofteT = Z.yunT = 0; A.SES.yanki(0); }
+  function olaySifirla() { Z.karanlik = false; A.SES.yanki(0); }
   // --- Ocak başı: tavadan fırlayan dev sosis, tek bir şeride boylamasına düşüp bir süre yatar ---
   function sosisFirlat() {
     const me = A.me, s = me.s + rand(85, 120), x = Math.random() < .5 ? A.LANES.reduce((a, b) => Math.abs(b - me.x) < Math.abs(a - me.x) ? b : a) : A.LANES[Math.floor(Math.random() * 4)];
@@ -812,7 +798,7 @@ export function tema(A) {
     kur, bolgeler, olay, olaySifirla, yuzey,
     get yasak() { return [[boru.a, boru.b]]; },
     isik: { gok: 0xfff0e0, yer: 0x7a5a44, gokG: .62, gunes: 0xffdcb4, gunesG: 2.1, gunesYon: [.72, .62, .3], isikYon: [.72, .62, .3],
-      sis: 0xe6dccd, sisYakin: 600, sisUzak: 3200, pozlama: .94, arka: 0xe6dccd, ton: [.82, .76, .7], golge: [.02, .012, 0], gunesParlama: false },
+      sis: 0xe6dccd, sisYakin: 600, sisUzak: 3200, pozlama: 1.035, arka: 0xe6dccd, ton: [.82, .76, .7], golge: [.02, .012, 0], gunesParlama: false },
     get engel() { return { boxes: M.seker, oil: M.sut, ramp: M.cetvel, kenar: mat('#d9d2c4'), adKutu: 'ŞEKER KÜPLERİ!', adYag: 'SÜT! kayıyorsun', adRampa: 'CETVEL RAMPASI! +HIZ', renkYag: '#f4efe4' }; },
   };
 }

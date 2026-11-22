@@ -313,7 +313,7 @@ const LIGHT_DIR = new THREE.Vector3(-0.5, 0.42, -0.75).normalize();
 const hemi = new THREE.HemisphereLight(0xc2b0ff, 0x9a6448, 1.05); scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xffbf86, 2.7);
 sun.castShadow = true;
-sun.shadow.mapSize.set(isTouch ? 1024 : 2048, isTouch ? 1024 : 2048);
+sun.shadow.mapSize.set(2048, 2048);   // gölge kenarları tırtıklı olmasın
 Object.assign(sun.shadow.camera, { left: -60, right: 60, top: 60, bottom: -60, near: 1, far: 420 });
 sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.04;
 scene.add(sun, sun.target);
@@ -1612,10 +1612,9 @@ function despawnHazard(h) {
   h.active = false; if (h.group) h.group.visible = false; if (h.boxes) h.boxes.forEach(b => b.m.visible = false);
   hazards.splice(hazards.indexOf(h), 1);
 }
-let hzNext = 15;
 // Çok oyunculuda engelleri yalnızca yönetici (host) üretir ve herkese yollar; herkes aynı engelleri görür.
 function spawnWave() {
-  const n = Math.random() < .15 ? 2 : 1;
+  const n = 1;   // her olayda tek engel (art arda yığılmasın)
   const lanes = [0, 1, 2, 3].sort(() => Math.random() - .5).slice(0, n);
   const lead = racers.filter(r => r.human && !r.finished);
   const ref = lead.length ? Math.max(...lead.map(r => r.s)) : me.s;
@@ -1634,13 +1633,14 @@ function spawnWave() {
 const seenHz = new Set();   // ağdan gelen engeller bir kez oluşturulur (geçilip kalkanlar geri gelmesin)
 function netHazard(id, e) {
   if (!e || !pool[e.tip] || !Number.isFinite(e.s)) return;   // eksik/bozuk kayıt
-  if (!seenHz.has(id)) { seenHz.add(id); spawnHazard(e.tip, e.s, e.x, id); }
+  if (!seenHz.has(id)) { seenHz.add(id); spawnHazard(e.tip, e.s, e.x, id); olayBasladi(); }   // yöneticinin olayı: buradaki bölge olayları da 10–15 sn bekler
   const h = hazards.find(o => o.netId === id);
   if (h && e.v && h.boxes && !h.hit) scatterBoxes(h, null);
 }
 function updateHazards(dt, raceT) {
   const lead = !NET.on || NET.host;
-  if (lead && raceT > 0 && racers.some(r => r.human && !r.finished) && raceT >= hzNext) { spawnWave(); hzNext = raceT + rand(10, 20); }
+  // engel dalgası da ortak olay sırasına uyar (bölge olaylarıyla arasında 10–15 sn)
+  if (lead && raceT > 0 && racers.some(r => r.human && !r.finished) && olaySirasi() === 'engel') { spawnWave(); olayBasladi(); }
   for (const h of [...hazards]) if (racers.every(r => r.s > h.s + 60) || me.s > h.s + 240) despawnHazard(h);
   for (const h of hazards) if (h.boxes && h.hit) for (const b of h.boxes) {
     if (!b.fly) continue;
@@ -1690,7 +1690,23 @@ function hitHazard(r, h) {
    Korsan Koyu: gülle + ahtapot kolu · Tünel: ışıklar söner · Kale Yolu: devrilen fıçı istifi
    Dino Kanyonu: T-Rex kükremesi + yuvarlanan kayalar · Değirmen Vadisi: koyun sürüsü + köprüde rüzgâr
    ========================================================= */
-const RFX = { list: [], zone: {}, cannonT: 0, tentT: 0, dropT: 0, boulderT: 0, sheepT: 0, tunnelLap: -9, roarLap: -9, windLap: -9, blackout: null, wind: 0, windDir: 1 };
+const RFX = { list: [], zone: {}, tunnelLap: -9, roarLap: -9, windLap: -9, blackout: null, wind: 0, windDir: 1 };
+/* OLAY SIRASI: yoldaki her olay (engel dalgası, rampa, gülle, kaya, koyun, sosis…) iyi ya da kötü fark etmeksizin
+   aynı sıraya girer; iki olay arasında rastgele 10–15 sn olur (art arda yığılmasın). Süre yarış saatiyle ölçülür. */
+const OLAY_ARALIK = [10, 15];
+let olayZaman = 0, olaySecim = null;
+const olayHazirMi = () => time >= olayZaman;
+// sıra geldiğinde bu olay ne olsun: 'engel' (yol engeli dalgası) ya da 'bolge' (bulunduğun bölgenin olayı).
+// Engelleri yalnızca yönetici üretir; diğer cihazlarda sıra bölge olaylarınındır (yöneticinin engeli gelince süre yeniden başlar).
+function olaySirasi() {
+  if (!olayHazirMi()) return null;
+  if (olaySecim === null) olaySecim = NET.on && !NET.host ? 'bolge' : Math.random() < .55 ? 'bolge' : 'engel';
+  return olaySecim;
+}
+const bolgeSirasi = () => olaySirasi() === 'bolge';
+// bu bölgede şu an olay yoksa sıra yol engeline geçer
+function bolgeOlayiYok() { if (olaySecim === 'bolge' && (!NET.on || NET.host)) olaySecim = 'engel'; }
+function olayBasladi() { olayZaman = time + rand(OLAY_ARALIK[0], OLAY_ARALIK[1]); olaySecim = null; if (window.__race) window.__race.log.push(`${time.toFixed(1)} OLAY`); }
 const FXM = {
   ball: new THREE.MeshStandardMaterial({ color: 0x23202a, roughness: .35, metalness: .6 }),
   marker: new THREE.MeshBasicMaterial({ color: 0xff2a3a, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide }),
@@ -1992,15 +2008,16 @@ function kraliyetOlay(dt, raceT) {
     farm: active && reg === 'DEĞİRMEN VADİSİ',
     wind: active && Math.abs(sd(RG.bridgeS, me.s)) < 110,
   };
-  // bölgeye yeni girince ilk olay kısa sürede gelsin
-  if (Z.cannon && !RFX.zone.cannon) { RFX.cannonT = 1.2; RFX.tentT = rand(4, 6); }
-  if (Z.kale && !RFX.zone.kale) RFX.dropT = 1;
-  if (Z.dino && !RFX.zone.dino) RFX.boulderT = rand(3, 5);
-  if (Z.farm && !RFX.zone.farm) RFX.sheepT = rand(2, 4);
   RFX.zone = Z;
-  if (Z.cannon) {
-    if ((RFX.cannonT -= dt) <= 0) { fireCannon(); RFX.cannonT = rand(2.5, 4.5); }
-    if ((RFX.tentT -= dt) <= 0) { tentacleSlam(); RFX.tentT = rand(8, 12); }
+  // Bölge olayları ortak olay sırasına uyar (iyi/kötü fark etmez, iki olay arasında 10–15 sn): sıra gelince
+  // bulunduğun bölgenin olaylarından biri olur.
+  if (bolgeSirasi()) {
+    const secenek = [];
+    if (Z.cannon) secenek.push(fireCannon, tentacleSlam);
+    if (Z.kale) secenek.push(barrelStack);
+    if (Z.dino) secenek.push(Math.abs(sd(RG.trexS, me.s)) < 160 && RFX.roarLap !== lap ? () => { RFX.roarLap = lap; roar(); } : () => boulder());
+    if (Z.farm) secenek.push(sheepHerd);
+    if (secenek.length) { secenek[Math.floor(Math.random() * secenek.length)](); olayBasladi(); } else bolgeOlayiYok();
   }
   SES.yanki(Z.tunnel ? 1 : 0);   // tünelde motor yankılanır
   if (Z.tunnel && RFX.tunnelLap !== lap) { RFX.tunnelLap = lap; if (Math.random() < .65) RFX.blackout = { t: -rand(.4, 1.1) }; }
@@ -2014,13 +2031,6 @@ function kraliyetOlay(dt, raceT) {
     if (b.t >= 3.7 || (!Z.tunnel && b.t > 0)) { RFX.blackout = null; lvl = 1; }
     setLights(lvl);
   }
-  // Kale Yolu: yol kenarında fıçı istifleri
-  if (Z.kale && (RFX.dropT -= dt) <= 0) { barrelStack(); RFX.dropT = rand(4.5, 7); }
-  if (Z.dino) {
-    if (Math.abs(sd(RG.trexS, me.s)) < 60 && RFX.roarLap !== lap) { RFX.roarLap = lap; roar(); RFX.boulderT = rand(5, 8); }
-    if ((RFX.boulderT -= dt) <= 0) { boulder(); RFX.boulderT = rand(6, 9); }
-  }
-  if (Z.farm && (RFX.sheepT -= dt) <= 0) { sheepHerd(); RFX.sheepT = rand(9, 13); }
   // köprüde yan rüzgâr
   if (Z.wind && RFX.windLap !== lap) { RFX.windLap = lap; RFX.windDir = Math.random() < .5 ? -1 : 1; toast('YAN RÜZGÂR!'); }
   RFX.wind = lerp(RFX.wind, Z.wind ? 1 : 0, 1 - Math.exp(-dt * 2));
@@ -2212,7 +2222,7 @@ function resetRace() {
   });
   for (const h of [...hazards]) despawnHazard(h);
   seenHz.clear();
-  hzNext = rand(10, 20);
+  olayZaman = T_GO + rand(6, 9); olaySecim = null;   // ilk olay yarış başladıktan birkaç saniye sonra
   resetRegionEvents();
   time = 0; evts = {}; prevRank = 4; shakeT = 0; lapIdx = 0; lapStart = 0; bestLap = Infinity; lapTimes = []; curRegion = null; endShown = false; endAt = 0; nitroReq = false;
   pLife.fill(0);
@@ -2444,18 +2454,19 @@ let camInit = true, fov = 64;
 const easeIO = t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 let camYaw = null;
 function chase(r, outP, outL) {
-  const back = 10.2 + (r.boostT > 0 ? .7 : 0);
+  // kamera biraz daha yukarıdan ve hafif aşağı bakar: uzaktaki engeller ve olaylar erkenden görünür
+  const back = 10.8 + (r.boostT > 0 ? .7 : 0);
   if (r.me && !AUTO_ALL) {   // oyuncu kamerası arabanın baktığı yönü takip eder
     const y = r.velYaw ?? r.car.root.rotation.y;   // hareket yönünü takip eder (kayarken araba yan görünür)
     camYaw = camYaw === null ? y : camYaw + wrapA(y - camYaw) * (1 - Math.exp(-camDt * 5));
     const p = r.car.root.position, fx = Math.sin(camYaw), fz = Math.cos(camYaw);
-    outP.set(p.x - fx * back, p.y + 3.9 + r.y * .3, p.z - fz * back);
-    outL.set(p.x + fx * 12, p.y + 1.7, p.z + fz * 12);
+    outP.set(p.x - fx * back, p.y + 5.4 + r.y * .3, p.z - fz * back);
+    outL.set(p.x + fx * 15, p.y + 1.1, p.z + fz * 15);
     return;
   }
   const dy = r.car.root.position.y - frameAt(r.s, F2).p.y - .05 - r.y;   // kavisli zeminde (boru) arabanın yükselmesi
-  frameAt(r.s - back, F2); outP.copy(F2.p).addScaledVector(F2.r, r.x * .75).addScaledVector(UP, 3.9 + r.y * .5 + dy * .8);
-  frameAt(r.s + 12, F3); outL.copy(F3.p).addScaledVector(F3.r, r.x * .85).addScaledVector(UP, 1.7 + r.y * .6 + dy * .8);
+  frameAt(r.s - back, F2); outP.copy(F2.p).addScaledVector(F2.r, r.x * .75).addScaledVector(UP, 5.4 + r.y * .5 + dy * .8);
+  frameAt(r.s + 15, F3); outL.copy(F3.p).addScaledVector(F3.r, r.x * .85).addScaledVector(UP, 1.1 + r.y * .6 + dy * .8);
 }
 let camDt = 0;
 function updateCamera(dt) {
@@ -2587,7 +2598,7 @@ function showEnd() {
 /* =========================================================
    Post-process
    ========================================================= */
-const SAMPLES = DBG.has('samples') ? +DBG.get('samples') : (isTouch ? 2 : 4);
+const SAMPLES = DBG.has('samples') ? +DBG.get('samples') : 4;   // kenar yumuşatma (telefonda da 4x: kesik/pürüzlü kenar olmasın)
 const composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(innerWidth * PR, innerHeight * PR, { type: THREE.HalfFloatType, samples: SAMPLES }));
 composer.addPass(new RenderPass(scene, camera));
 const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), .42, .55, 1.05);
@@ -2620,7 +2631,7 @@ const grade = new ShaderPass({
         col+=vec3(1.,.72,.48)*g*v;
       }
       float vig=smoothstep(.95,.3,length(dc*vec2(1.,.92))*1.15);
-      col=mix(col*uTon,col,.35+.65*vig);
+      col=mix(col*uTon,col,.55+.45*vig);   // kenar karartması hafif
       float n=fract(sin(dot(floor(uv*uRes)+fract(uTime*7.)*91.,vec2(12.9898,78.233)))*43758.5453);
       col+=(n-.5)*.028;
       gl_FragColor=vec4(col,1.);
@@ -2741,7 +2752,7 @@ const TEMA_TANIM = {
     id: 'kraliyet', ad: 'KRALİYET TURU', baslik: 'Kraliyet Turu', ctrl: CTRL_KRALIYET, start: [-40, 212], seed: 20261122,
     kur: kraliyetKur, bolgeler: REGIONS_KRALIYET, olay: kraliyetOlay,
     isik: { gok: 0xc2b0ff, yer: 0x9a6448, gokG: 1.05, gunes: 0xffbf86, gunesG: 2.7, gunesYon: [-.55, .1, -.83], isikYon: [-.5, .42, -.75],
-      sis: 0xf1a28c, sisYakin: 170, sisUzak: 1150, pozlama: .98, arka: null, ton: [.55, .45, .72], golge: [.045, 0, .07] },
+      sis: 0xf1a28c, sisYakin: 170, sisUzak: 1150, pozlama: 1.08, arka: null, ton: [.55, .45, .72], golge: [.045, 0, .07] },
     kare() { sky.position.copy(camera.position); seaMat.uniforms.uTime.value = time; sea.position.x = camera.position.x; sea.position.z = camera.position.z; },
   },
 };
@@ -2754,7 +2765,7 @@ const API = {
   clamp, sstep, lerp, rand, sr, srand, wrapA, canvasTex, rrect, textSign, TEX, C, rbox, box, cyl, sph, cone, mat, mk, dummy,
   frameAt, mkF, F1, F2, F3, sAt, sd, inRange, roadPt, ribbon, roadNear, pedKur, PED_YERI, mergeTree,
   emit, boom, shatter, knock, hitRacers, addFx, toast, setLights, FXG, FXM, M, headlight, RFX, wallLim,
-  SES, yanAdim, olayEngel, OLAY_ENGEL, ILK_SERIT, ORTA_SERIT, kenarlik,
+  SES, yanAdim, olayEngel, OLAY_ENGEL, ILK_SERIT, ORTA_SERIT, kenarlik, bolgeSirasi, bolgeOlayiYok, olayBasladi,
   sarsinti: v => { shakeT = Math.max(shakeT, v); },
   get L() { return L; }, get START_S() { return START_S; }, get me() { return me; }, racers, get time() { return time; }, get AUTO_ALL() { return AUTO_ALL; },
 };
@@ -2879,7 +2890,7 @@ function loop() {
   else if (NET.on && endShown && !NET.final && hudFrame % 30 === 0) showEnd();
 }
 // dinamik çözünürlük: FPS 45'in altına düşerse çözünürlüğü kademeli azalt, rahatlayınca geri yükselt
-const DYN = { pr: PR, min: Math.max(.7, PR * .55), acc: 0, n: 0 };
+const DYN = { pr: PR, min: Math.max(.95, PR * .7), acc: 0, n: 0 };   // çözünürlük bundan aşağı inmez (pikselli görünmesin)
 function applyPR(p) {
   DYN.pr = p; renderer.setPixelRatio(p); composer.setPixelRatio(p); composer.setSize(innerWidth, innerHeight);
   grade.uniforms.uRes.value.set(innerWidth * p, innerHeight * p);

@@ -67,7 +67,8 @@ html,body{width:100%;height:100%;overflow:hidden;background:#1a1230;font-family:
 #toast.gold{color:#ffd23f}
 #toast.show{animation:toast 1.2s ease-out forwards}
 @keyframes toast{0%{opacity:0;transform:translate(-50%,20px) scale(.7)}18%{opacity:1;transform:translate(-50%,0) scale(1.08)}30%{transform:translate(-50%,0) scale(1)}75%{opacity:1}100%{opacity:0;transform:translate(-50%,-24px)}}
-#hint{position:absolute;left:50%;bottom:calc(2.5vmin + env(safe-area-inset-bottom));transform:translateX(-50%);font-size:clamp(10px,2vmin,15px);background:var(--panel);padding:.45em 1em;border-radius:99px;opacity:.95;transition:opacity .6s;white-space:nowrap}
+/* ipucu: ✕ ÇIK düğmesinin üstünde, iki yandaki tuşların arasına sığacak genişlikte (gerekirse iki satır) */
+#hint{position:absolute;left:50%;bottom:calc(1.6vmin + clamp(10px,1.8vmin,13px) * 2.4 + 6px + env(safe-area-inset-bottom));transform:translateX(-50%);font-size:clamp(10px,2vmin,15px);background:var(--panel);padding:.45em 1em;border-radius:1.2em;opacity:.95;transition:opacity .6s;width:max-content;max-width:max(200px,calc(100vw - 110vmin));text-align:center;line-height:1.35}
 #hint.hide{opacity:0}
 /* hız göstergesi nitro düğmesinin solunda, aynı hizada (mini haritaya ve tuşlara binmez) */
 #speedo{position:absolute;right:calc(6vmin + var(--gasW) / 2 + var(--nitroW) / 2 + env(safe-area-inset-right));bottom:calc(6vmin + var(--gasW) * 1.12 + 2.2vmin + var(--nitroW) / 2 + env(safe-area-inset-bottom));transform:translateY(50%);font-size:clamp(13px,2.6vmin,20px);background:var(--panel);border-radius:9px;padding:.25em .6em;text-align:right;min-width:5.2em}
@@ -105,7 +106,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:#1a1230;font-family:
 #nitro.ready .bolt{color:#fff}
 @keyframes ready{50%{box-shadow:0 0 0 6px rgba(139,70,255,.35),0 0 30px rgba(139,70,255,.6)}}
 /* bitiş kartı */
-#end{position:fixed;inset:0;display:grid;place-items:center;background:radial-gradient(ellipse at center,rgba(25,12,45,.35),rgba(20,8,38,.7));transition:opacity .5s;padding:3vmin}
+#end{position:fixed;inset:0;z-index:10;display:grid;place-items:center;background:radial-gradient(ellipse at center,rgba(25,12,45,.35),rgba(20,8,38,.7));transition:opacity .5s;padding:3vmin}
 #end.hidden{opacity:0;pointer-events:none}
 .card{width:min(740px,94vw);max-height:94vh;overflow:auto;background:linear-gradient(160deg,rgba(40,22,80,.92),rgba(24,14,48,.94));border:2px solid rgba(255,255,255,.12);border-radius:22px;padding:clamp(14px,3vmin,30px);box-shadow:0 20px 60px rgba(0,0,0,.45);display:grid;grid-template-columns:1.1fr 1fr;gap:clamp(12px,2.5vmin,26px)}
 @media (max-aspect-ratio:1/1){.card{grid-template-columns:1fr}}
@@ -129,6 +130,8 @@ html,body{width:100%;height:100%;overflow:hidden;background:#1a1230;font-family:
 /* ses aç/kapat: solda, sıralama listesinin altında (alttaki yazıların üstüne binmez) */
 #sesBtn{position:fixed;left:calc(1.6vmin + env(safe-area-inset-left));top:calc(var(--rowh) * 5 + 5vmin + env(safe-area-inset-top));z-index:9;font-size:clamp(10px,1.8vmin,13px);width:2.6em;height:2.6em;padding:.45em;border:0;border-radius:99px;background:var(--panel);color:#fff;cursor:pointer;display:grid;place-items:center}
 #sesBtn svg{width:100%;height:100%}
+/* lobide sıralama listesi yok: ses düğmesi sol alta iner (küçük ekranlarda oyuncu kartının üstüne binmesin) */
+body.lobide #sesBtn{top:auto;bottom:calc(2vmin + env(safe-area-inset-bottom))}
 #sesBtn .carpi{display:none}
 #sesBtn.kapali .carpi{display:inline}
 #sesBtn.kapali .dalga{display:none}
@@ -176,6 +179,13 @@ body.lobide #hud,body.lobide .pad{visibility:hidden}
 .lsatir .lbtn2{background:linear-gradient(90deg,var(--purple2),var(--purple));border:0;white-space:nowrap}
 .lsatir.kapali{opacity:.6}
 .lliste{touch-action:pan-y}
+.lliste.kisa{max-height:24vh}
+/* yarış izlenirken: kontroller gizli; altta kimin izlendiği ve ◀ ▶ ile değiştirme (yalnızca izleyen görür) */
+body.izliyor .pad,body.izliyor #hint,body.izliyor #speedo{visibility:hidden}
+#izleBar{position:fixed;left:50%;bottom:calc(10vmin + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:5;display:none;align-items:center;gap:.6em;font-size:clamp(11px,2.2vmin,16px);color:#fff;background:var(--panel);border-radius:99px;padding:.3em .5em}
+body.izliyor #izleBar{display:flex}
+#izleBar button{font:inherit;color:#fff;border:0;border-radius:99px;background:rgba(255,255,255,.14);width:2.4em;height:2.4em;cursor:pointer}
+#izleBar span{min-width:9em;text-align:center;white-space:nowrap}
 /* kısa (küçük) telefon ekranları: nitro mini haritaya binmesin */
 @media (max-height:380px){:root{--gasW:92px;--nitroW:54px}#minimap{width:92px;height:92px}#padR{gap:1.4vmin}}
 .lsatir.kapali .lbtn2{background:rgba(0,0,0,.3);cursor:default}
@@ -238,6 +248,7 @@ body.lobide #hud,body.lobide .pad{visibility:hidden}
   </div>
 </div>
 <button id="quit" class="it" aria-label="Yarıştan çık">✕ ÇIK</button>
+<div id="izleBar" class="it"><button id="izleOnce" aria-label="Önceki araç">◀</button><span id="izleAd">İZLİYORSUN</span><button id="izleSonra" aria-label="Sonraki araç">▶</button></div>
 <button id="sesBtn" aria-label="Sesi aç / kapat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" fill="currentColor"/><path class="dalga" d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/><path class="carpi" d="M16 9.5l5 5M21 9.5l-5 5"/></svg></button>
 <div id="lobi" class="hidden"></div>
 <div id="cevir"><div><b>↻</b>Yarış için telefonunu yan çevir</div></div>
@@ -311,7 +322,7 @@ const TIME_SCALE = clamp(parseFloat(DBG.get('speed')) || 1, .05, 4);  // ?speed=
 const AUTO_ALL = DBG.has('auto');                                        // ?auto → oyuncu da otomatik pilot
 const SOLO = DBG.has('solo');                                            // ?solo → ağsız tek kişilik deneme
 // Çok oyunculu durum: on = ağ üzerinden yarış sürüyor; host = botları ve engelleri bu cihaz üretir.
-const NET = { on: false, host: false, ag: null, now: () => performance.now(), startAt: 0, sendT: 0, final: null };
+const NET = { on: false, host: false, izleyici: false, ag: null, now: () => performance.now(), startAt: 0, sendT: 0, final: null };
 
 /* =========================================================
    Renderer / sahne
@@ -454,8 +465,9 @@ const KENAR_M = {
   yesil: new THREE.MeshBasicMaterial({ color: 0x27ff6a, side: THREE.BackSide, toneMapped: false, fog: false }),
 };
 const KENAR_DUZ = {
-  kirmizi: new THREE.MeshBasicMaterial({ color: 0xff2a2a, toneMapped: false, fog: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }),
-  yesil: new THREE.MeshBasicMaterial({ color: 0x27ff6a, toneMapped: false, fog: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }),
+  // düz kenarlıklar yoldan güçlü (-5), üstündeki çıkartmadan zayıf (-6) kaydırılır: asfaltın altında kalmaz, nesneyi örtmez
+  kirmizi: new THREE.MeshBasicMaterial({ color: 0xff2a2a, toneMapped: false, fog: false, polygonOffset: true, polygonOffsetFactor: -5, polygonOffsetUnits: -5 }),
+  yesil: new THREE.MeshBasicMaterial({ color: 0x27ff6a, toneMapped: false, fog: false, polygonOffset: true, polygonOffsetFactor: -5, polygonOffsetUnits: -5 }),
 };
 function kenarlik(nesne, renk = 'kirmizi', kalin = .2) {
   const parcalar = [];
@@ -963,13 +975,15 @@ for (const [x, z] of [[-8, 330], [70, 345], [10, 520], [-10, 600], [120, 380], [
   for (let i = 0; i < n; i++) {
     const s = SKEL.a + i * (SKEL.b - SKEL.a) / (n - 1); frameAt(s, F1);
     const k = Math.sin((i + .6) / (n - .2) * Math.PI) * .35 + .75;
-    const R0 = (HW + 4) * k, RH0 = 15 * k;
+    // kaburga ayakları bariyerin dışında kalır (yol kenarında içinden geçilen kemik olmasın)
+    const R0 = HW + 4.3 + (k - .77) * 4, RH0 = 15 * k;
     const m = mk(D, new THREE.TorusGeometry(R0, .75, 6, 26, Math.PI), bone, F1.p.x, F1.p.y, F1.p.z);
     m.rotation.y = Math.atan2(F1.t.x, F1.t.z); m.scale.y = RH0 / R0;
     tops.push(new THREE.Vector3(F1.p.x, F1.p.y + RH0 + .6, F1.p.z));
   }
   frameAt(SKEL.b + 16, F1); tops.push(new THREE.Vector3(F1.p.x, F1.p.y + 7, F1.p.z));
-  frameAt(SKEL.b + 32, F1); tops.push(new THREE.Vector3(F1.p.x + F1.r.x * 10, F1.p.y + 1, F1.p.z + F1.r.z * 10));
+  frameAt(SKEL.b + 24, F1); tops.push(new THREE.Vector3(F1.p.x + F1.r.x * 9, F1.p.y + 6, F1.p.z + F1.r.z * 9));   // kuyruk yolun üstünden yüksekte geçer,
+  frameAt(SKEL.b + 36, F1); tops.push(new THREE.Vector3(F1.p.x + F1.r.x * 18, F1.p.y + 1, F1.p.z + F1.r.z * 18)); // ucu bariyerin dışında yere iner
   frameAt(SKEL.a - 8, F1); tops.unshift(new THREE.Vector3(F1.p.x, F1.p.y + 13, F1.p.z));
   const spine = new THREE.CatmullRomCurve3(tops);
   mk(D, new THREE.TubeGeometry(spine, 80, 1.15, 8, false), bone);
@@ -1233,16 +1247,20 @@ return { pads: pedKur(PED_YERI, [[SKEL.a, SKEL.b]]), env: ENV, neon: RG.neon };
 }
 // hız pedleri: [turun oranı, şerit]; yasak bir aralığa (tünel, iskelet vb.) denk gelen ped aralığın ötesine kayar
 const PED_YERI = [[.012, -5.8], [.105, 2], [.255, -2], [.41, 5.8], [.545, -5.8], [.67, 2], [.8, -2], [.92, 5.8]];
-const PED_M = new THREE.MeshBasicMaterial({ map: TEX.pad, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false });
+// Yola yapışık ortak çıkartmalar (ped, düz kenarlıklar, birikinti, lastik izi, uyarı halkası) temaların yol
+// malzemelerinden (en çok -3 kaydırma) daha güçlü derinlik kaydırmasıyla çizilir: asfaltın altında kaybolmazlar.
+const YOL_USTU = { polygonOffset: true, polygonOffsetFactor: -6, polygonOffsetUnits: -6 };
+const PED_M = new THREE.MeshBasicMaterial({ map: TEX.pad, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, ...YOL_USTU });
 const PED_CERCEVE = (() => { const d = new THREE.Shape(); d.moveTo(-2.15, -3.55); d.lineTo(2.15, -3.55); d.lineTo(2.15, 3.55); d.lineTo(-2.15, 3.55); d.closePath();
   const i = new THREE.Path(); i.moveTo(-1.8, -3.2); i.lineTo(-1.8, 3.2); i.lineTo(1.8, 3.2); i.lineTo(1.8, -3.2); i.closePath(); d.holes.push(i); return new THREE.ShapeGeometry(d); })();
-function pedKur(liste, yasak = []) {
+// yolY: temanın asfalt yüksekliği (ped asfaltın 3 cm üstünde durur; Levent'te asfalt .20'de, ped altta kalıyordu)
+function pedKur(liste, yasak = [], yolY = .05) {
   const out = [];
   for (const [f, x] of liste) {
     let s = START_S + f * L;
     for (const [a, b] of yasak) if (inRange(s, a - 10, b + 10)) s += (((b - a) % L) + L) % L + 18;
     frameAt(s, F1);
-    const g = new THREE.Group(); g.position.copy(F1.p).addScaledVector(F1.r, x); g.position.y += .08; g.rotation.y = Math.atan2(F1.t.x, F1.t.z) + Math.PI; D.add(g);
+    const g = new THREE.Group(); g.position.copy(F1.p).addScaledVector(F1.r, x); g.position.y += yolY + .03; g.rotation.y = Math.atan2(F1.t.x, F1.t.z) + Math.PI; D.add(g);
     mk(g, new THREE.PlaneGeometry(3.6, 6.4), PED_M, 0, 0, 0, { r: [-Math.PI / 2, 0, 0], cast: false });
     mk(g, PED_CERCEVE, KENAR_DUZ.yesil, 0, .01, 0, { r: [-Math.PI / 2, 0, 0], cast: false });   // hızlandırır: yeşil çerçeve
     out.push({ s: ((s % L) + L) % L, x });
@@ -1330,6 +1348,9 @@ function perfectRun(mult) {
 }
 const pads = [];      // etkin temanın hız pedleri
 let SPEED = 1, CAL_TIME = 0, BOOST = 0;
+// Asfaltın orta çizgiden yüksekliği temaya göre değişir (Kraliyet .05, Levent .20): araçlar, yol engelleri ve
+// tuzak işareti bu farkla yükseltilir (yoksa asfaltın altında kalıp görünmüyorlardı ama etki ediyorlardı)
+let YDY = 0;
 // her pistin uzunluğu farklıdır: hız çarpanı kusursuz 3 tur hep PERFECT_TIME sürecek şekilde ayarlanır
 function hizAyarla() {
   SPEED = 1;
@@ -1535,11 +1556,14 @@ function buildRacers(list) {
     const car = makeCar(c.type, CAR_COL[c.type] ?? CAR_COL.sports, c.me); mergeTree(car.body); scene.add(car.root);
     racers.push({ ...c, car, top: BASE.top * SPEED });
   }
-  me = racers.find(r => r.me);
+  me = racers.find(r => r.me) || racers[0];   // izlerken takip edilen araç (kendi aracımız yok)
   me.car.root.add(headlight, headlight.target);
   buildBoard();
 }
-if (DBG.has('debug')) window.__race = { racers, getTime: () => time, log: [], get L() { return L; }, get SPEED() { return SPEED; }, get CAL_TIME() { return CAL_TIME; }, get VB() { return VB; }, tp: (x, z) => { const d = ((sAt(x, z) - me.s) % L + L) % L; racers.forEach(r => r.s += d); camInit = true; }, fin: () => { me.s = me.maxS = FINISH_S - 70; camInit = true; }, pads, get START_S() { return START_S; }, curv: thetaPrime, getInput: () => input, get me() { return me; }, P };
+if (DBG.has('debug')) window.__race = { racers, getTime: () => time, log: [], get L() { return L; }, get SPEED() { return SPEED; }, get CAL_TIME() { return CAL_TIME; }, get VB() { return VB; }, tp: (x, z) => { const d = ((sAt(x, z) - me.s) % L + L) % L; racers.forEach(r => r.s += d); camInit = true; }, fin: () => { me.s = me.maxS = FINISH_S - 70; camInit = true; }, pads, get START_S() { return START_S; }, curv: thetaPrime, getInput: () => input, get me() { return me; }, P,
+  // test: girdi kuyruğu ve tek fizik adımı (kare hızından bağımsız girdi zamanlamasını ölçmek için)
+  girdiEkle: (t, d) => girdiKuyruk.push({ t, d: { left: false, right: false, gas: false, brake: false, ...d } }), girdiUygula: t => girdiUygula(t), girdiTemizle: () => { girdiKuyruk.length = 0; },
+  adim: (h, raceT) => { time += h; simulate(h, raceT); } };
 
 /* =========================================================
    Duman parçacıkları
@@ -1587,7 +1611,7 @@ function updateParticles(dt) {
 /* lastik izleri (kayarken / sert frende yola düşer) */
 const SKID_N = 1200;
 const skidMesh = new THREE.InstancedMesh(new THREE.PlaneGeometry(.34, 1).rotateX(-Math.PI / 2),
-  new THREE.MeshBasicMaterial({ color: 0x1f181f, transparent: true, opacity: .42, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }), SKID_N);
+  new THREE.MeshBasicMaterial({ color: 0x1f181f, transparent: true, opacity: .42, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -5, polygonOffsetUnits: -5 }), SKID_N);
 skidMesh.frustumCulled = false; skidMesh.count = 0; scene.add(skidMesh);
 let skidHead = 0;
 function addSkid(x, y, z, yaw, len) {
@@ -1616,7 +1640,8 @@ const pool = { boxes: [], oil: [], ramp: [] };
   stripeTex.repeat.set(.6, .6);
   const rampM = new THREE.MeshStandardMaterial({ map: stripeTex, roughness: .55 });
   const oilM = new THREE.MeshPhysicalMaterial({ color: 0x0d0b14, roughness: .06, metalness: .3, envMap: ENV, iridescence: 1, iridescenceIOR: 1.6, iridescenceThicknessRange: [150, 650], transparent: true, opacity: .92 });
-  const oilSh = new THREE.Shape(); { const n = 22; for (let i = 0; i <= n; i++) { const a = i / n * Math.PI * 2; const rr = 1 + Math.sin(a * 3 + 1) * .18 + Math.sin(a * 5) * .1; const px = Math.cos(a) * 1.7 * rr, py = Math.sin(a) * 2.8 * rr; i ? oilSh.lineTo(px, py) : oilSh.moveTo(px, py); } }
+  // birikinti şekli etki alanının (1,8 × 2,8 elips) içinde kalır: görünen her yer kaydırır, görünmeyen yer kaydırmaz
+  const oilSh = new THREE.Shape(); { const n = 22; for (let i = 0; i <= n; i++) { const a = i / n * Math.PI * 2; const rr = 1 + Math.sin(a * 3 + 1) * .09 + Math.sin(a * 5) * .05; const px = Math.cos(a) * 1.55 * rr, py = Math.sin(a) * 2.45 * rr; i ? oilSh.lineTo(px, py) : oilSh.moveTo(px, py); } }
   const oilG = new THREE.ShapeGeometry(oilSh);
   const prof = new THREE.Shape(); prof.moveTo(-2.2, 0); prof.lineTo(2.2, 0); prof.lineTo(2.2, .75); prof.lineTo(1.9, .78); prof.closePath();
   const rampG = new THREE.ExtrudeGeometry(prof, { depth: 3.4, bevelEnabled: false }).translate(0, 0, -1.7).rotateY(-Math.PI / 2);
@@ -1629,8 +1654,8 @@ const pool = { boxes: [], oil: [], ramp: [] };
     pool.boxes.push(hb);
     const ho = { type: 'oil', group: new THREE.Group(), hitBy: new Set(), active: false }; ho.group.visible = false; scene.add(ho.group);
     mk(ho.group, oilG, oilM, 0, .07, 0, { r: [-Math.PI / 2, 0, 0], cast: false, recv: true });
-    mk(ho.group, new THREE.CircleGeometry(.7, 14), oilM, 1.6, .075, 2.6, { r: [-Math.PI / 2, 0, 0], cast: false });
-    mk(ho.group, new THREE.CircleGeometry(.45, 12), oilM, -1.3, .075, -2.9, { r: [-Math.PI / 2, 0, 0], cast: false });
+    mk(ho.group, new THREE.CircleGeometry(.45, 14), oilM, .95, .075, 1.55, { r: [-Math.PI / 2, 0, 0], cast: false });
+    mk(ho.group, new THREE.CircleGeometry(.32, 12), oilM, -.75, .075, -1.85, { r: [-Math.PI / 2, 0, 0], cast: false });
     pool.oil.push(ho);
     const hr = { type: 'ramp', group: new THREE.Group(), hitBy: new Set(), active: false }; hr.group.visible = false; scene.add(hr.group);
     mk(hr.group, rampG, rampM, 0, .05, 0, { recv: true });
@@ -1651,6 +1676,7 @@ function engelGorunum(e = {}) {
   for (const h of pool.boxes) for (const b of h.boxes) b.m.material = yeni.boxes;
   for (const h of pool.oil) h.group.children.forEach(m => { m.material = yeni.oil; });
   for (const h of pool.ramp) h.group.children.forEach(m => { m.material = m.material === eski.ramp ? yeni.ramp : yeni.kenar; });
+  Object.assign(yeni.oil, YOL_USTU);   // birikinti (mutfakta süt) asfaltın üstünde çizilir
   engelSimdi = yeni;
   ENGEL_AD.boxes = e.adKutu || 'KUTULAR!'; ENGEL_AD.oil = e.adYag || 'YAĞ! kayıyorsun'; ENGEL_AD.ramp = e.adRampa || 'RAMPA! +HIZ';
   HZ_COL.oil = e.renkYag || '#15121c';   // mini haritadaki işaret rengi (mutfakta süt beyaz)
@@ -1658,11 +1684,11 @@ function engelGorunum(e = {}) {
 function spawnHazard(type, s, x, netId = null) {
   const h = pool[type].find(o => !o.active); if (!h) return;
   h.active = true; h.s = s; h.x = x; h.hit = false; h.hitBy.clear(); h.netId = netId;
-  frameAt(s, F1); h.yaw = Math.atan2(F1.t.x, F1.t.z); h.base = F1.p.clone().addScaledVector(F1.r, x);
+  frameAt(s, F1); h.yaw = Math.atan2(F1.t.x, F1.t.z); h.base = F1.p.clone().addScaledVector(F1.r, x); h.base.y += YDY;
   if (h.group) { h.group.position.copy(h.base); h.group.rotation.y = h.yaw; h.group.visible = true; }
   if (h.boxes) for (const b of h.boxes) {
     b.m.position.copy(b.local).applyAxisAngle(UP, h.yaw).add(h.base); b.m.position.y += .05;
-    b.m.rotation.set(0, h.yaw + b.ry, 0); b.v.set(0, 0, 0); b.w.set(0, 0, 0); b.fly = false; b.m.visible = true; b.kabuk?.forEach(k => { k.visible = true; });
+    b.m.rotation.set(0, h.yaw + b.ry, 0); b.m.scale.setScalar(1); b.v.set(0, 0, 0); b.w.set(0, 0, 0); b.fly = false; b.m.visible = true; b.kabuk?.forEach(k => { k.visible = true; });
   }
   hazards.push(h);
   if (window.__race) window.__race.log.push(`${time.toFixed(1)} SPAWN ${type} şerit ${LANES.indexOf(x)}`);
@@ -1708,8 +1734,13 @@ function updateHazards(dt, raceT) {
   // engel dalgası da ortak olay sırasına uyar (bölge olaylarıyla arasında 10–15 sn)
   if (lead && raceT > 0 && !endShown && racers.some(r => r.human && !r.finished) && olaySirasi() === 'engel') { spawnWave(); olayBasladi(); }
   for (const h of [...hazards]) if (racers.every(r => r.s > h.s + 60) || me.s > h.s + 240) despawnHazard(h);
+  for (const h of hazards) if (h.boxes && h.hit) {
+    // dağılan koliler artık etki etmez: savrulduktan sonra küçülüp kaybolur (yolda etkisiz yatmasın)
+    h.hitT += dt; const k = clamp(1 - (h.hitT - .7) / .35, 0, 1);
+    for (const b of h.boxes) { b.m.scale.setScalar(Math.max(.001, k)); b.m.visible = k > 0; }
+  }
   for (const h of hazards) if (h.boxes && h.hit) for (const b of h.boxes) {
-    if (!b.fly) continue;
+    if (!b.fly || !b.m.visible) continue;
     b.v.y -= 24 * dt; b.m.position.addScaledVector(b.v, dt);
     b.m.rotation.x += b.w.x * dt; b.m.rotation.y += b.w.y * dt; b.m.rotation.z += b.w.z * dt;
     const floor = h.base.y + .05 + b.sz * .45;
@@ -1718,7 +1749,7 @@ function updateHazards(dt, raceT) {
 }
 // kutular dağılır (r: çarpan araç; null ise başka bir oyuncu çarpmış, ağdan haber geldi)
 function scatterBoxes(h, r) {
-  h.hit = true;
+  h.hit = true; h.hitT = 0;
   for (const b of h.boxes) b.kabuk?.forEach(k => { k.visible = false; });   // dağılan kutular artık yavaşlatmaz
   const v = r ? r.v : BASE.top * SPEED * .8;
   frameAt(h.s, F1);
@@ -1733,6 +1764,7 @@ function scatterBoxes(h, r) {
 // hiçbir darbe arabayı durduramaz: hız en fazla tepe hızın %40'ına kadar düşer
 function slowTo(r, f) { r.v = Math.max(r.v * f, Math.min(r.v, r.top * .4)); }
 function hitHazard(r, h) {
+  if (h.type === 'ramp' && r.y > .1) return;   // havadan geçen araç rampayı tüketmesin (yere inip yeniden girebilir)
   h.hitBy.add(r.id);
   if (window.__race) window.__race.log.push(`${time.toFixed(1)} ${r.id} -> ${h.type}${h.hit ? '(dağılmış)' : ''}`);
   frameAt(r.s, F1);
@@ -1817,7 +1849,7 @@ function esyaYeri() {
 function esyaSatiriKur(s, netId = null) {
   const satir = esyaSatirlari.find(k => !k.active); if (!satir) return;
   satir.active = true; satir.s = s; satir.netId = netId; satir.alanlar.clear();
-  for (const k of satir.kutular) { k.gizliT = 0; k.m.visible = true; k.m.scale.setScalar(1); }
+  for (const k of satir.kutular) { k.gizliT = 0; k.son = 1; k.m.visible = true; k.m.scale.setScalar(1); }
   if (window.__race) window.__race.log.push(`${time.toFixed(1)} ESYA ${s.toFixed(0)}`);
 }
 // önde kutu dizisi varken bölge olayı başlamasın (olay nesnesi kutuların üstüne düşmesin)
@@ -1846,19 +1878,23 @@ function esyaGuncelle(dt, raceT) {
     if (!satir.active) continue;
     if (racers.every(r => r.s > satir.s + 60) || me.s > satir.s + 240) { satir.active = false; for (const k of satir.kutular) k.m.visible = false; continue; }
     frameAt(satir.s, FE);   // kendi çerçevesi: kutu alınınca çağrılan engel kurulumu ortak F1'i değiştirir
+    // bu sıradan eşyanı aldıysan kalan kutular senin ekranında söner (içinden geçip hiçbir şey almamak olmasın)
+    const benAldim = satir.alanlar.has(me.id);
     for (const k of satir.kutular) {
-      // değme: herkes için (uzaktaki arabalar kutuyu görsel olarak patlatır; eşyayı yalnızca kendi cihazında sürülen araç alır)
+      // değme: herkes için (uzaktaki arabalar kutuyu görsel olarak patlatır; eşyayı yalnızca kendi cihazında sürülen araç alır).
+      // Bu sıradan eşyasını zaten almış araç kutulara değse de kutu patlamaz (hiçbir şey vermeyen patlama olmasın).
       if (k.gizliT <= 0) for (const r of racers) {
-        if (r.finished || Math.abs(sd(satir.s, r.s)) > 1.4 + r.car.hl || Math.abs(r.x - k.x) > 1.3 + r.car.hw) continue;
+        if (r.finished || satir.alanlar.has(r.id) || Math.abs(sd(satir.s, r.s)) > 1.4 + r.car.hl || Math.abs(r.x - k.x) > 1.3 + r.car.hw) continue;
         k.gizliT = 1.4;
-        if (!r.remote && !satir.alanlar.has(r.id)) { satir.alanlar.add(r.id); if (r.me) SES.esya(); esyaUygula(r, esyaSec(r)); }   // sürpriz hemen olur
-        for (let i = 0; i < 8; i++) emit(k.m.position.x, k.m.position.y, k.m.position.z, rand(-4, 4), rand(1, 4), rand(-4, 4), rand(.6, 1), rand(.4, .7));
+        if (!r.remote) { satir.alanlar.add(r.id); if (r.me) SES.esya(); esyaUygula(r, esyaSec(r)); }   // sürpriz hemen olur
+        if (!benAldim) for (let i = 0; i < 8; i++) emit(k.m.position.x, k.m.position.y, k.m.position.z, rand(-4, 4), rand(1, 4), rand(-4, 4), rand(.6, 1), rand(.4, .7));
         break;
       }
       k.gizliT -= dt;
-      const sc = k.gizliT > 0 ? Math.max(0, 1 - (1.4 - k.gizliT) / .15) + Math.max(0, (.25 - k.gizliT) / .25) : 1;
-      k.m.scale.setScalar(Math.max(.001, Math.min(1, sc)));
-      k.m.position.copy(FE.p).addScaledVector(FE.r, k.x); k.m.position.y += 1.9 + Math.sin(time * 2.4 + k.faz) * .25;
+      k.son = benAldim ? Math.max(0, (k.son ?? 1) - dt / .3) : 1;   // aldıktan sonra kalan kutular .3 sn'de küçülüp kaybolur
+      const sc = (k.gizliT > 0 ? Math.max(0, 1 - (1.4 - k.gizliT) / .15) + Math.max(0, (.25 - k.gizliT) / .25) : 1) * k.son;
+      k.m.scale.setScalar(Math.max(.001, Math.min(1, sc))); k.m.visible = k.son > 0;
+      k.m.position.copy(FE.p).addScaledVector(FE.r, k.x); k.m.position.y += 1.9 + YDY + Math.sin(time * 2.4 + k.faz) * .25;
       k.m.rotation.set(.35, time * 1.6 + k.faz, .2);
     }
   }
@@ -1886,7 +1922,7 @@ function engelKoy(tip, s, x, ek = {}) {
 }
 // tuzak: yere yanıp sönen kırmızı işaret çıkar, 1,2 sn sonra koliler gökten düşer
 function gecikmeliEngel(tip, s, x, netId = null) {
-  const p = roadPt(s, x), mark = new THREE.Mesh(FXG.ring, FXM.marker.clone()); mark.position.copy(p); mark.position.y += .15; mark.scale.setScalar(.6); scene.add(mark);
+  const p = roadPt(s, x), mark = new THREE.Mesh(FXG.ring, FXM.marker.clone()); mark.position.copy(p); mark.position.y += .15 + YDY; mark.scale.setScalar(.6); scene.add(mark);
   SES.islik(1.2, () => p);
   let t = 0;
   addFx({
@@ -1958,15 +1994,14 @@ function olaySirasi() {
 }
 const bolgeSirasi = () => olaySirasi() === 'bolge';
 // olaylar yalnızca yarış sürerken: sen bitirince ya da sonuç ekranı açılınca (çok oyunculuda süre dolunca) durur
-const olayAcik = raceT => raceT > 0 && !me.finished && !endShown;
+const olayAcik = raceT => raceT > 0 && !me.finished && !endShown && !NET.izleyici;   // izleyende olay başlamaz
 // bu bölgede şu an olay yoksa sıra yol engeline geçer
 function bolgeOlayiYok() { if (olaySecim === 'bolge' && (!NET.on || NET.host)) olaySecim = 'engel'; }
 function olayBasladi() { olayZaman = time + rand(OLAY_ARALIK[0], OLAY_ARALIK[1]); olaySecim = null; if (window.__race) window.__race.log.push(`${time.toFixed(1)} OLAY`); }
 const FXM = {
   ball: new THREE.MeshStandardMaterial({ color: 0x23202a, roughness: .35, metalness: .6 }),
-  marker: new THREE.MeshBasicMaterial({ color: 0xff2a3a, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide }),
+  marker: new THREE.MeshBasicMaterial({ color: 0xff2a3a, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide, ...YOL_USTU }),
   flash: new THREE.MeshBasicMaterial({ color: 0xffa040, transparent: true, opacity: 1, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }),
-  crater: new THREE.MeshBasicMaterial({ color: 0x1a1416, transparent: true, opacity: .6, depthWrite: false }),
   boulder: new THREE.MeshStandardMaterial({ color: 0xa65a3a, flatShading: true, roughness: 1 }),
   barrel: new THREE.MeshStandardMaterial({ color: 0xd8342c, roughness: .45, metalness: .3 }),
   band: new THREE.MeshStandardMaterial({ color: 0xffc21a, roughness: .5 }),
@@ -1976,7 +2011,7 @@ const FXM = {
   suck: new THREE.MeshStandardMaterial({ color: 0xffb3d3, roughness: .6 }),
 };
 const FXG = {
-  ball: new THREE.SphereGeometry(1.1, 14, 10), ring: new THREE.RingGeometry(2.6, 3.4, 32).rotateX(-Math.PI / 2), disc: new THREE.CircleGeometry(3, 24).rotateX(-Math.PI / 2),
+  ball: new THREE.SphereGeometry(1.1, 14, 10), ring: new THREE.RingGeometry(2.6, 3.4, 32).rotateX(-Math.PI / 2),
   flash: new THREE.SphereGeometry(1, 16, 12), boulder: new THREE.DodecahedronGeometry(1.75, 0),   // tek şeride sığar
   barrel: new THREE.CylinderGeometry(.85, .85, 1.7, 16), band: new THREE.CylinderGeometry(.88, .88, .3, 16),
   tent: new THREE.CylinderGeometry(.45, 1.7, 12.5, 12, 6).translate(0, 6.25, 0),
@@ -2031,7 +2066,7 @@ function fireCannon() {
   boom(from, .5, false); SES.patlama(from, .6, 120);
   const ball = mk(scene, FXG.ball, FXM.ball); kenarlik(ball);
   const mark = new THREE.Mesh(FXG.ring, FXM.marker.clone()); mark.position.copy(target); mark.position.y += .14; mark.scale.setScalar(.6); scene.add(mark);
-  const T = 1.7; let t = 0, crater = null, ct = 0; const hit = new Set();
+  const T = 1.7; let t = 0; const hit = new Set();
   SES.islik(T, () => target);
   addFx({
     update(dt) {
@@ -2040,16 +2075,13 @@ function fireCannon() {
         const k = t / T; ball.position.lerpVectors(from, target, k); ball.position.y += Math.sin(Math.PI * k) * 45;
         mark.material.opacity = .35 + .45 * Math.abs(Math.sin(t * 12)); mark.scale.setScalar(.75 - .2 * k); return true;
       }
-      if (!crater) {
-        boom(target, .9); SES.patlama(target, 1); scene.remove(ball); scene.remove(mark); mark.material.dispose();
-        // yalnızca düştüğü şeridi vurur (yandaki şeritteki araç etkilenmez)
-        hitRacers(s, x, 2.6, 1.6, r => knock(r, { slow: .62, jump: 4.5, kick: rand(-.3, .3), shake: .55, msg: 'GÜLLE!' }), hit);
-        crater = new THREE.Mesh(FXG.disc, FXM.crater.clone()); crater.position.copy(target); crater.position.y += .1; crater.scale.setScalar(.55); scene.add(crater);
-      }
-      ct += dt; crater.material.opacity = .6 * Math.max(0, 1 - ct / 5);
-      if (ct > 5) { this.dispose(); return false; } return true;
+      // düştüğü an: yalnızca kırmızı halkanın içindeki araç vurulur (yandaki şerit etkilenmez).
+      // Etkisiz krater bırakmaz (yolda içinden geçilen iz kalmasın); patlama efekti yeter.
+      boom(target, .9); SES.patlama(target, 1);
+      hitRacers(s, x, 1.9, 1.7, r => knock(r, { slow: .62, jump: 4.5, kick: rand(-.3, .3), shake: .55, msg: 'GÜLLE!' }), hit);
+      this.dispose(); return false;
     },
-    dispose() { scene.remove(ball); scene.remove(mark); mark.material.dispose(); if (crater) { scene.remove(crater); crater.material.dispose(); } }
+    dispose() { scene.remove(ball); scene.remove(mark); mark.material.dispose(); }
   });
 }
 /* --- Korsan Koyu: ahtapot kolu deniz tarafından yalnızca EN SOL şeridi kapatır --- */
@@ -2079,10 +2111,11 @@ function tentacleSlam() {
       else if (t < 4.8) arm.position.y = lerp(0, -13, (t - 4.1) / .7);
       else { this.dispose(); return false; }
       eng.w = arm.rotation.z > 1.2 ? 1.9 : 0;   // kol yoldayken botlar sol şeritten kaçar
-      if (arm.rotation.z > 1.2) for (const r of racers) {
+      // vuruş yalnızca kol yola yattığında (havadayken ya da kalkarken içinden geçilen alan olmasın); alan kolun kalınlığı kadar
+      if (arm.rotation.z > 1.42 && t < 3.45) for (const r of racers) {
         if (r.remote || hit.has(r) || r.y > 1.5) continue;
         // çarpınca kol geri çekilir: yolu kapatmaya devam etmez
-        if (Math.abs(r.s - s) < 1.5 + r.car.hl && r.x - r.car.hw < KOL_UCU) { hit.add(r); knock(r, { slow: .7, kick: .3, shake: .45, msg: 'AHTAPOT!' }); if (r.me) t = Math.max(t, 3.3); }
+        if (Math.abs(r.s - s) < .9 + r.car.hl && r.x - r.car.hw < KOL_UCU) { hit.add(r); knock(r, { slow: .7, kick: .3, shake: .45, msg: 'AHTAPOT!' }); if (r.me) t = Math.max(t, 3.3); }
       }
       return true;
     },
@@ -2146,8 +2179,8 @@ function roar() {
 /* --- Kale Yolu: yol kenarındaki fıçı istifi devrilir; fıçılar ilk şeride yuvarlanır, oradan ortaya yavaşça --- */
 function barrelStack() {
   const s0 = me.s + rand(380, 430), side = Math.random() < .7 ? 1 : -1, dir = -side;
-  // istif bariyerin iç tarafındaki bankette durur (çitin içinden geçmesin)
-  const plank = new THREE.Group(); { const p = roadPt(s0, side * (HW + 2.5)); plank.position.copy(p); frameAt(s0, F1); plank.rotation.y = Math.atan2(F1.t.x, F1.t.z); scene.add(plank); mk(plank, box(1.9, .12, 4.6), mat('#7a5034', { roughness: .9 }), 0, .06, 0); }
+  // istif bariyerin iç tarafındaki bankette durur (çitin içinden geçmesin). Altındaki tahta kaldırıldı: araç
+  // kenardan içinden geçiyordu ve hiçbir etkisi yoktu.
   let said = false, ses = null;
   const items = [[-1.05, 0, 0], [1.05, 0, .25], [0, 1, .5]].map(([so, lvl, delay]) => {
     const g = new THREE.Group(), roll = new THREE.Group(); g.add(roll); scene.add(g);
@@ -2173,7 +2206,7 @@ function barrelStack() {
         }
         b.eng.x = b.o.x;
         frameAt(b.s, F1); b.g.position.copy(F1.p).addScaledVector(F1.r, b.o.x); b.g.position.y += b.y; b.g.rotation.y = Math.atan2(F1.t.x, F1.t.z);
-        if (go) hitRacers(b.s, b.o.x, .9, .9, r => {
+        if (go && b.y < 1.6) hitRacers(b.s, b.o.x, .9, .9, r => {   // üstteki fıçı yere inmeden alttan geçen arabaya vurmaz
           if (b.done) return; b.done = true; scene.remove(b.g); OLAY_ENGEL.delete(b.eng);
           knock(r, { slow: .68, jump: 3, kick: dir * .28, shake: .45, msg: said ? '' : 'FIÇI!' }); said = true; boom(b.g.position, .7); SES.kirilma(b.g.position, 'tahta');
         }, b.hit);
@@ -2182,7 +2215,7 @@ function barrelStack() {
       if (t > 60 || me.s > s0 + 60) { this.dispose(); return false; }
       return true;
     },
-    dispose() { items.forEach(b => { scene.remove(b.g); OLAY_ENGEL.delete(b.eng); }); scene.remove(plank); ses?.bitir(); }
+    dispose() { items.forEach(b => { scene.remove(b.g); OLAY_ENGEL.delete(b.eng); }); ses?.bitir(); }
   });
 }
 /* --- Değirmen Vadisi: koyun sürüsü --- */
@@ -2218,7 +2251,7 @@ function sheepHerd() {
           g.position.y = gy + (v > .5 ? Math.abs(Math.sin(t * (v > 3 ? 11 : 5) + ph)) * .25 : 0) + (fence < 1 ? (1 - fence) * 1.3 : 0);
           g.rotation.set(v > .3 ? 0 : Math.sin(t * 2 + ph) * .15, Math.atan2(F1.r.x * dir, F1.r.z * dir) + (v > .3 ? 0 : Math.sin(t * .7 + ph) * .8), 0);
           if (!go && (t > 45 || me.s > s0 + 40)) { this.dispose(); return false; }
-          hitRacers(s, o.x, .9, .8, r => {
+          hitRacers(s, o.x, 1.05, 1.3, r => {   // alan koyunun gövdesi kadar (yanından sürtünüp içinden geçilmesin)
             fly = { v: F1.t.clone().multiplyScalar(r.v * .6).addScaledVector(F1.r, rand(-4, 4)).setY(rand(7, 11)), w: rand(-12, 12), t: 0 };
             OLAY_ENGEL.delete(eng); SES.tok(g.position, { f0: 110, f1: 60, sure: .18, guc: .5, parlak: 700, gurultuG: .3 });
             knock(r, { slow: .82, kick: rand(-.15, .15), shake: .25, msg: said ? '' : 'MEEE!' }); said = true;
@@ -2433,8 +2466,15 @@ function kontrolBul(x, y, onceki) {
   const { a, b } = tusYeri, payL = a.width * .5;
   const solAlan = x <= b.right + payL && y >= Math.min(a.top, b.top) - payL && y <= Math.max(a.bottom, b.bottom) + payL && x >= a.left - payL;
   if (solAlan || onceki === 'left' || onceki === 'right') {
-    // direksiyona basan parmak alanın dışına taşsa bile direksiyon olarak kalır; yönü yalnızca yatay konum belirler
-    if (solAlan || x < innerWidth * .5) return x < (a.right + b.left) / 2 ? 'left' : 'right';
+    // direksiyona basan parmak alanın dışına taşsa bile direksiyon olarak kalır; yönü yalnızca yatay konum belirler.
+    // Kararlı sınır: basılı yön ancak parmak ortayı ~10 px geçince değişir (oklar arasında dinlenen başparmağın
+    // titremesi aracı saniyede onlarca kez sağa sola çevirmesin). İlk dokunuşta yine parmağın olduğu taraf seçilir.
+    if (solAlan || x < innerWidth * .5) {
+      const orta = (a.right + b.left) / 2, pay = Math.max(8, a.width * .1);
+      if (onceki === 'left') return x > orta + pay ? 'right' : 'left';
+      if (onceki === 'right') return x < orta - pay ? 'left' : 'right';
+      return x < orta ? 'left' : 'right';
+    }
   }
   const { g, f } = tusYeri;
   // Gaza basan parmak ancak gerçekten frenin ÜSTÜNE gelirse frene geçer (ve tersi). Direksiyon kırarken kayan
@@ -2445,14 +2485,21 @@ function kontrolBul(x, y, onceki) {
   if (icinde(f, x, y, f.width * .1)) return 'brake';
   return null;
 }
-function girdiGuncelle() {
+/* Girdi zamanlaması: dokunuş/tuş değişimleri gerçek anlarıyla kuyruğa yazılır, fizik her küçük adımda (en fazla 1/60 sn)
+   o ana kadarki değişimleri uygular. Eskiden girdi yalnızca karenin başında okunuyordu: kare hızı düşünce (ör. iPhone
+   Düşük Güç Modu 30 kare/sn) aynı kısa dokunuş bazen uzun bazen kısa işleniyor, araba fazladan yalpalıyordu. */
+const girdiKuyruk = [];
+// olayın zamanı (tarayıcı olay saati performance.now ile aynı değilse / yoksa şimdiki an)
+const olayZamani = e => (e && e.timeStamp > 0 && Math.abs(e.timeStamp - performance.now()) < 1000) ? e.timeStamp : performance.now();
+function girdiGuncelle(e) {
   const d = { left: false, right: false, gas: false, brake: false };
   for (const k of parmak.values()) if (k) d[k] = true;
-  for (const k in input) {
-    input[k] = tusla[k] || d[k];
-    $(KEYBTN[k]).classList.toggle('on', input[k]);
-  }
+  const hedef = {};
+  for (const k in input) { hedef[k] = tusla[k] || d[k]; $(KEYBTN[k]).classList.toggle('on', hedef[k]); }   // düğme görünüşü hemen
+  girdiKuyruk.push({ t: olayZamani(e), d: hedef });
+  if (girdiKuyruk.length > 64) girdiUygula(Infinity);   // döngü durmuşsa (lobi) birikmesin
 }
+function girdiUygula(t) { while (girdiKuyruk.length && girdiKuyruk[0].t <= t) Object.assign(input, girdiKuyruk.shift().d); }
 const dokunmaAcik = () => !document.body.classList.contains('lobide') && $('end').classList.contains('hidden');
 addEventListener('pointerdown', e => {
   if (!dokunmaAcik() || e.pointerType === 'mouse' && e.button !== 0) return;
@@ -2460,22 +2507,22 @@ addEventListener('pointerdown', e => {
   if (e.target.closest('button:not(.btn), #lobi, #end')) return;   // çık / ses düğmeleri ve menüler kendi işini yapar
   tusOlc(); const k = kontrolBul(e.clientX, e.clientY, null);
   if (!k) return;
-  e.preventDefault(); parmak.set(e.pointerId, k); girdiGuncelle();
+  e.preventDefault(); parmak.set(e.pointerId, k); girdiGuncelle(e);
 }, { passive: false });
 addEventListener('pointermove', e => {
   if (!parmak.has(e.pointerId)) return;
   const k = kontrolBul(e.clientX, e.clientY, parmak.get(e.pointerId));
-  if (k !== parmak.get(e.pointerId)) { parmak.set(e.pointerId, k); girdiGuncelle(); }
+  if (k !== parmak.get(e.pointerId)) { parmak.set(e.pointerId, k); girdiGuncelle(e); }
 }, { passive: true });
-for (const ev of ['pointerup', 'pointercancel']) addEventListener(ev, e => { if (parmak.delete(e.pointerId)) girdiGuncelle(); });
+for (const ev of ['pointerup', 'pointercancel']) addEventListener(ev, e => { if (parmak.delete(e.pointerId)) girdiGuncelle(e); });
 addEventListener('keydown', e => {
   const k = KEYS[e.code];
-  if (k) { tusla[k] = true; girdiGuncelle(); e.preventDefault(); }
+  if (k && !e.repeat) { tusla[k] = true; girdiGuncelle(e); } if (k) e.preventDefault();
   if (e.code === 'Space' || e.code === 'ShiftLeft' || e.code === 'ShiftRight') { nitroReq = true; e.preventDefault(); }
 });
-addEventListener('keyup', e => { const k = KEYS[e.code]; if (k) { tusla[k] = false; girdiGuncelle(); } });
+addEventListener('keyup', e => { const k = KEYS[e.code]; if (k) { tusla[k] = false; girdiGuncelle(e); } });
 // sekme arka plana geçerse hiçbir tuş/parmak basılı kalmasın
-function girdiSifirla() { parmak.clear(); for (const k in tusla) tusla[k] = false; girdiGuncelle(); }
+function girdiSifirla() { parmak.clear(); for (const k in tusla) tusla[k] = false; girdiKuyruk.length = 0; girdiGuncelle(); girdiUygula(Infinity); }   // hemen uygulanır
 // Pencere odağı giderse yalnızca KLAVYE tuşları bırakılır. iPhone Safari'de oyun site içindeki çerçevede çalışır ve
 // dokunurken odak kaybı (blur) gelebilir: eskiden bu, basılı parmakları da silip gazı anında bırakıyordu
 // ("gaza basıyorum ama gitmiyor"). Parmaklar yalnızca kalkınca / iptal edilince / sekme gizlenince bırakılır.
@@ -2498,13 +2545,13 @@ if (!window.PointerEvent) {
       if (el?.closest('button:not(.btn), #lobi, #end')) continue;
       const k = kontrolBul(t.clientX, t.clientY, null); if (k) parmak.set('t' + t.identifier, k);
     }
-    girdiGuncelle();
+    girdiGuncelle(e);
   }, { passive: false });
   addEventListener('touchmove', e => {
     for (const t of e.changedTouches) { const id = 't' + t.identifier; if (parmak.has(id)) parmak.set(id, kontrolBul(t.clientX, t.clientY, parmak.get(id))); }
-    girdiGuncelle();
+    girdiGuncelle(e);
   }, { passive: true });
-  for (const ev of ['touchend', 'touchcancel']) addEventListener(ev, e => { for (const t of e.changedTouches) parmak.delete('t' + t.identifier); girdiGuncelle(); });
+  for (const ev of ['touchend', 'touchcancel']) addEventListener(ev, e => { for (const t of e.changedTouches) parmak.delete('t' + t.identifier); girdiGuncelle(e); });
 }
 
 /* =========================================================
@@ -2672,11 +2719,13 @@ function simulate(dt, raceT) {
     r.bumpT = Math.max(0, r.bumpT - dt);
     // dokunduğun an etki eder: arabanın izdüşümü pede/engele değmesi yeterli
     const chw = r.car.hw, chl = r.car.hl;
-    for (const pd of pads) if (Math.abs(sd(pd.s, r.s)) < 3.2 + chl && Math.abs(r.x - pd.x) < 1.8 + chw && r.y < .3 && !r.pads.has(passKey(r, pd))) { r.pads.add(passKey(r, pd)); r.boostT = Math.max(r.boostT, BASE.padT); if (r.v > 0) r.v += BOOST * .3; /* anında itme */ if (r.me && !r.finished) { toast('BOOST!'); SES.ped(); } }
+    // hız pedi: etki alanı yeşil çerçeve kadar
+    for (const pd of pads) if (Math.abs(sd(pd.s, r.s)) < 3.55 + chl && Math.abs(r.x - pd.x) < 2.15 + chw && r.y < .3 && !r.pads.has(passKey(r, pd))) { r.pads.add(passKey(r, pd)); r.boostT = Math.max(r.boostT, BASE.padT); if (r.v > 0) r.v += BOOST * .3; /* anında itme */ if (r.me && !r.finished) { toast('BOOST!'); SES.ped(); } }
     for (const h of hazards) {
       if (h.hitBy.has(r.id)) continue;
       const [hw, hl, so] = HZ_SIZE[h.type];
       if (Math.abs(h.s + so - r.s) > hl + chl || Math.abs(r.x - h.x) > hw + chw) continue;
+      if (h.type === 'oil') { const ex = (r.x - h.x) / (hw + chw * .8), es = (h.s - r.s) / (hl + chl * .8); if (ex * ex + es * es > 1) continue; }   // birikinti eliptik: köşelerde görünmeyen etki yok
       if (h.type === 'boxes' && r.y < .9) hitHazard(r, h);
       else if (h.type === 'oil' && r.y < .2) hitHazard(r, h);
       else if (h.type === 'ramp') hitHazard(r, h);
@@ -2714,7 +2763,7 @@ const tmpV = new THREE.Vector3();
 function placeCars(dt, raceT) {
   for (const r of racers) {
     const c = r.car; frameAt(r.s, F1);
-    c.root.position.copy(F1.p).addScaledVector(F1.r, r.x); c.root.position.y += .05 + r.y;
+    c.root.position.copy(F1.p).addScaledVector(F1.r, r.x); c.root.position.y += .05 + YDY + r.y;
     const player = r.me && !AUTO_ALL;
     const spin = !player && r.slipT > 0 ? Math.sin(r.slipT * 8.5 + .8) * .5 * (r.slipT / 1.3) * r.slipDir : 0;
     if (player) r.velYaw = Math.atan2(F1.t.x, F1.t.z) - (r.psiV + r.slip * .3);
@@ -2819,7 +2868,7 @@ function updateHUD(raceT) {
     r.rank = r.shownRank = i; r.row.style.transform = `translateY(calc(var(--rowh) * ${i}))`; r.numEl.textContent = i + 1;
   });
   // sıra yükselme bildirimi: sık sıra değişiminde ekranı doldurmasın
-  if (raceT > 0 && !me.finished && me.rank < prevRank && time - lastRankToast > 1.5) { lastRankToast = time; toast(`${ord(me.rank + 1)} ▲`, me.rank === 0); }
+  if (raceT > 0 && !me.finished && !NET.izleyici && me.rank < prevRank && time - lastRankToast > 1.5) { lastRankToast = time; toast(`${ord(me.rank + 1)} ▲`, me.rank === 0); }
   prevRank = me.rank;
   if (!me.finished) { setText('time', fmtTime(raceT)); setText('lap', fmtTime(raceT - lapStart)); }
   setText('kmh', (me.v < -.3 ? 'R ' : '') + Math.round(Math.abs(me.v) * 3.6));
@@ -2849,7 +2898,7 @@ function events(raceT) {
   once('c1', 1.65, () => { showCount('1'); SES.bip(); });
   once('go', T_GO, () => { showCount('GO!', 'go'); $('intro').classList.add('hide'); SES.bip(true); });
   once('hint', T_GO + 9, () => $('hint').classList.add('hide'));
-  if (raceT > 3.5 && me.v < 1 && !me.finished && !AUTO_ALL && !evts.idle) {
+  if (raceT > 3.5 && me.v < 1 && !me.finished && !AUTO_ALL && !NET.izleyici && !evts.idle) {
     evts.idle = time; $('hint').classList.remove('hide');
     toast(isTouch ? 'GAZ: büyük butonu basılı tut!' : 'GAZ: ↑ ya da W basılı tut!', true);
   }
@@ -2860,8 +2909,8 @@ function events(raceT) {
     if (li > lapIdx) {
       const lt = raceT - lapStart; lapTimes.push(lt); bestLap = Math.min(bestLap, lt); lapStart = raceT; lapIdx = li;
       $('lapv').textContent = `${li + 1}/${LAPS}`;
-      if (li === LAPS - 1) showCount('SON TUR!', 'fin'); else toast(`TUR ${li + 1}/${LAPS} · ${fmtTime(lt)}`, true);
-      SES.tur();
+      if (NET.izleyici) { /* izlerken tur bildirimi yok */ } else if (li === LAPS - 1) showCount('SON TUR!', 'fin'); else toast(`TUR ${li + 1}/${LAPS} · ${fmtTime(lt)}`, true);
+      if (!NET.izleyici) SES.tur();
     }
     // bölge
     const reg = regionOf(me.car.root.position);
@@ -2885,12 +2934,12 @@ function liveResults() {
 function showEnd() {
   endShown = true;
   const list = NET.final || liveResults();
-  const pos = list.findIndex(x => x.id === me.id) + 1;
-  $('endTitle').textContent = pos === 1 ? '1. oldun! 👑' : `${pos}. oldun!`;
-  $('stats').innerHTML = (me.finished ? `Süren: <b>${fmtTime(me.finishT)}</b> · ` : '') + (lapTimes.length ? `En iyi tur: <b>${fmtTime(bestLap)}</b><br>Turlar: ${lapTimes.map(t => fmtTime(t)).join(' · ')}<br>` : '') + `Kusursuz sürüş hedefi: <b>${fmtTime(PERFECT_TIME)}</b>`;
+  const pos = list.findIndex(x => x.id === me.id) + 1, izl = NET.izleyici;
+  $('endTitle').textContent = izl ? 'Yarış bitti' : pos === 1 ? '1. oldun! 👑' : `${pos}. oldun!`;
+  $('stats').innerHTML = izl ? '' : (me.finished ? `Süren: <b>${fmtTime(me.finishT)}</b> · ` : '') + (lapTimes.length ? `En iyi tur: <b>${fmtTime(bestLap)}</b><br>Turlar: ${lapTimes.map(t => fmtTime(t)).join(' · ')}<br>` : '') + `Kusursuz sürüş hedefi: <b>${fmtTime(PERFECT_TIME)}</b>`;
   $('results').innerHTML = list.map((x, i) => {
     const crown = x.insan ? crownSVG.replace('class="cr"', 'style="width:1.2em;height:.9em;color:#ffd23f"') : '';
-    const mine = x.id === me.id;
+    const mine = !NET.izleyici && x.id === me.id;
     return `<li class="${mine ? 'me' : x.insan ? 'p2' : ''}"><span class="n">${i + 1}</span>${crown}<span>${esc(x.ad)}${mine ? ' (Sen)' : ''}</span><span class="g">${x.tahmini ? '~' + fmtTime(x.t) + ' (tahmini)' : fmtTime(x.t)}</span></li>`;
   }).join('');
   $('endNote').textContent = !NET.on ? '' : NET.final ? 'Sonuçlar kesinleşti. Birazdan herkes lobiye döner.' : 'Diğer oyuncular bitiriyor… Sonuçlar herkes bitirince (ya da en fazla 1 dakika sonra) kesinleşir.';
@@ -3035,6 +3084,50 @@ async function beginRace({ kadro, baslangic, ben, host, tema }) {
   $('quit').classList.add('on'); document.body.classList.remove('lobide');
   wakeLock(true);
 }
+/* YARIŞ İZLEME: başka bir lobinin süren yarışı izlenir. Kendi aracın yoktur; bütün araçların konumu ağdan gelir.
+   Hiçbir şey gönderilmez, olay başlatılmaz, kutu alınmaz: lobidekiler izlendiğini bilmez. Kamera öndekini izler;
+   ◀ ▶ ile başka araca geçilir (o zaman seçilen araçta kalır). */
+let izleSecildi = false, izleKontrolT = 0;
+async function izleBaslat({ kadro, baslangic, tema }) {
+  const list = Object.entries(kadro).map(([id, k]) => ({ id, name: k.ad, human: !!k.insan, me: false, type: k.tip, grid: k.grid, dropped: !!k.dustu }));
+  const bilet = ++yarisBilet; NET.host = false;
+  for (let deneme = 1; ; deneme++) {
+    try { await temaYukle(tema || 'kraliyet', true); break; }
+    catch (e) {
+      console.warn(e);
+      if (deneme >= 3) { if (bilet === yarisBilet) haritaHatasi(); return; }
+      await new Promise(r => setTimeout(r, 1200));
+    }
+  }
+  if (bilet !== yarisBilet) return;      // bu arada izleme bırakıldı
+  buildRacers(list);
+  NET.on = true; NET.izleyici = true; NET.startAt = baslangic; NET.final = null; NET.sendT = 0;
+  for (const r of racers) r.remote = true;
+  resetRace();
+  time = Math.max(0, (NET.now() - baslangic) / 1000);   // yarışın şu anki anından başlanır
+  if (time > T_GO + .5) Object.assign(evts, { intro: true, c3: true, c2: true, c1: true, go: true, hint: true });
+  izleSecildi = false; izleTakip(null);
+  started = true; document.body.classList.remove('lobide'); document.body.classList.add('izliyor');
+  $('quit').classList.add('on'); $('intro').classList.add('hide'); $('hint').classList.add('hide');
+  wakeLock(true);
+}
+// izlenen aracı değiştir (r: araç; null → öndeki)
+function izleTakip(r) {
+  const yeni = r || standings().find(o => !o.finished) || standings()[0];
+  if (!yeni) return;
+  if (yeni !== me) { me = yeni; me.car.root.add(headlight, headlight.target); camInit = true; curRegion = null; }
+  lapIdx = clamp(Math.floor((me.s - START_S) / L), 0, LAPS - 1); $('lapv').textContent = `${lapIdx + 1}/${LAPS}`;
+  $('izleAd').textContent = `İZLİYORSUN · ${me.name}`;
+}
+// seçim yapılmadıysa her saniye öndekine geçilir
+function izleOtomatik() { const t = performance.now(); if (!izleSecildi && t - izleKontrolT > 1000) { izleKontrolT = t; izleTakip(null); } }
+function izleDegistir(yon) {
+  if (!NET.izleyici || !racers.length) return;
+  const sira = standings(), i = sira.indexOf(me);
+  izleSecildi = true; izleTakip(sira[(i + yon + sira.length) % sira.length]);
+}
+dokunTikla($('izleOnce'), () => izleDegistir(-1));
+dokunTikla($('izleSonra'), () => izleDegistir(1));
 // harita indirilemedi: yarışa girilmez (konum yollanmadığı için yerine bot geçer); oyuncuya ne yapacağı söylenir
 function haritaHatasi() {
   const l = $('loading'); l.classList.remove('hidden');
@@ -3042,7 +3135,7 @@ function haritaHatasi() {
   dokunTikla($('haritaTekrar'), () => location.reload());
 }
 function backToLobby() {
-  yarisBilet++; NET.on = false; girdiSifirla(); NET.final = null; started = false; document.body.classList.add('lobide');
+  yarisBilet++; NET.on = false; NET.izleyici = false; girdiSifirla(); NET.final = null; started = false; document.body.classList.add('lobide'); document.body.classList.remove('izliyor');
   wakeLock(false);
   $('end').classList.add('hidden'); $('quit').classList.remove('on', 'sure'); $('quit').textContent = '✕ ÇIK';
   buildRacers(defaultRoster(myName, lastType));
@@ -3083,7 +3176,7 @@ function temaUygula(t) {
     const kok = new THREE.Group(), eskiAnim = anim; D = kok; anim = []; seed = t.seed || 20261122;
     try {
       const out = t.kur(kok) || {};
-      t.anim = anim; t.pads = out.pads || []; if (out.env) t.env = out.env; if (out.neon) t.neon = out.neon;
+      t.anim = anim; t.pads = out.pads || []; if (out.env) t.env = out.env; if (out.neon) t.neon = out.neon; if (out.yolY != null) t.yolY = out.yolY;
       for (const m of t.neon || []) m.userData.base ??= m.emissiveIntensity;
       mergeTree(kok); scene.add(kok); t.kok = kok;
     } catch (e) {   // kurulamadıysa eski tema olduğu gibi kalır
@@ -3093,7 +3186,7 @@ function temaUygula(t) {
   }
   // eski dünya sahneden çıkarılır (gizli olsa da her karede matris güncellemesinde dolaşılıyordu); geri dönülünce yeniden eklenir
   if (eski) { eski.kok.visible = false; scene.remove(eski.kok); }
-  DUNYA = t; t.kok.visible = true; scene.add(t.kok); anim = t.anim;
+  DUNYA = t; t.kok.visible = true; scene.add(t.kok); anim = t.anim; YDY = (t.yolY ?? .05) - .05;
   for (const h of [...hazards]) despawnHazard(h);
   pads.length = 0; pads.push(...t.pads);
   const I = t.isik;
@@ -3141,7 +3234,7 @@ const OYUN = {
   aracResim: t => THUMBS[t], temaResim: id => TEMA_RESIM[id] || THEME_SHOT,
   // tema belli olunca (araç seçimi sırasında) dünya arkada hazırlanır; lobide arka plan o tema olur
   temaHazirla: id => { if (!started && !NET.on) setTimeout(() => temaYukle(id).catch(e => console.warn(e)), 60); },
-  yarisBaslat: beginRace, kadroGuncelle: updateRoster, hostDegisti: setHost, uzakDurum: netState,
+  yarisBaslat: beginRace, izle: izleBaslat, kadroGuncelle: updateRoster, hostDegisti: setHost, uzakDurum: netState,
   engel: (id, e) => { if (NET.on) netHazard(id, e); },
   insanlarBitti: () => racers.filter(r => r.human && !r.dropped).every(r => r.finished),
   ilkBitisVar: () => racers.some(r => r.human && !r.dropped && r.finished),   // yerine bot geçen oyuncunun botu sayılmaz
@@ -3158,13 +3251,13 @@ function loop() {
   requestAnimationFrame(loop);
   if (!started) {   // lobi: sahne arkada durağan görünür; pil harcamasın diye saniyede ~3 kez çizilir
     if (idleFrame++ % 20 !== 0) return;
-    clock.getDelta(); for (const f of anim) f(performance.now() / 1000);
+    clock.getDelta(); girdiUygula(Infinity); for (const f of anim) f(performance.now() / 1000);
     updateCamera(0); gunesKonumla(me.car.root.position); DUNYA.kare?.(time); updateHUD(-1); updateGrade();   // lobide de arabaların gölgesi olsun
     SES.motor({ aktif: false, dt: .33 }); SES.surtunme(0, false); SES.yanki(0); SES.ruzgar(0, 0);   // lobide motor susar
     if (DBG.has('low')) renderer.render(scene, camera); else composer.render();
     return;
   }
-  const raw = clock.getDelta(); adaptResolution(raw);
+  const raw = clock.getDelta(), tSon = performance.now(), tIlk = tSon - raw * 1000; adaptResolution(raw);   // bu karenin gerçek zaman aralığı (girdi kuyruğu için)
   const prof = window.__race ? performance.now() : 0;
   if (prof) { renderer.info.autoReset = false; renderer.info.reset(); }
   // çok oyunculuda herkesin saati sunucu saatine bağlıdır: süreler ve sıralama herkeste aynı ölçülür
@@ -3173,8 +3266,10 @@ function loop() {
   const raceT = time - T_GO;
   // ağır çekim/hızlı modda fizik küçük adımlarla
   const steps = Math.max(1, Math.ceil(dt / (1 / 60))), h = dt / steps;
-  for (let i = 0; i < steps; i++) simulate(h, raceT - dt + h * (i + 1));
-  if (NET.on) { applyNet(dt); netSend(); }
+  // her küçük fizik adımı, o adımın gerçek zamanına kadar olan dokunuş/tuş değişimleriyle çalışır
+  for (let i = 0; i < steps; i++) { girdiUygula(tIlk + (tSon - tIlk) * (i + 1) / steps); simulate(h, raceT - dt + h * (i + 1)); }
+  girdiUygula(tSon);
+  if (NET.on) { applyNet(dt); if (!NET.izleyici) netSend(); else izleOtomatik(); }   // izleyen hiçbir şey göndermez
   events(raceT);
   updateHazards(dt, raceT);
   esyaGuncelle(dt, raceT);
@@ -3217,7 +3312,7 @@ function adaptResolution(raw) {
 }
 // test: oyunu çizim yapmadan, sabit 1/60 adımla ilerlet (yalnızca ?debug)
 if (window.__race) window.__race.fastRun = (secs, ctl) => {
-  const dt = 1 / 60;
+  const dt = 1 / 60; girdiUygula(Infinity);
   for (let i = 0; i < secs * 60; i++) {
     time += dt; const raceT = time - T_GO;
     if (ctl) ctl(raceT);
@@ -3254,7 +3349,7 @@ dokunTikla($('sesBtn'), e => { e.stopPropagation(); SES.baslat(); $('sesBtn').cl
 // yarıştan çıkış: yanlışlıkla basılmasın diye iki dokunuş
 let quitT = 0;
 dokunTikla($('quit'), () => {
-  if (!$('quit').classList.contains('sure')) {
+  if (!$('quit').classList.contains('sure') && !NET.izleyici) {   // izleyen yarışta değil: onay sormadan çıkar
     $('quit').classList.add('sure'); $('quit').textContent = 'Emin misin? Tekrar bas';
     clearTimeout(quitT); quitT = setTimeout(() => { $('quit').classList.remove('sure'); $('quit').textContent = '✕ ÇIK'; }, 3000);
     return;
@@ -3276,7 +3371,7 @@ emit(me.car.root.position.x, 1, me.car.root.position.z, 0, 0, 0, 1, .01);
 const warm = new THREE.Group(); scene.add(warm);
 {
   const p = roadPt(START_S + 12, 0); warm.position.copy(p);
-  mk(warm, FXG.ball, FXM.ball, -4, 1, 0); mk(warm, FXG.ring, FXM.marker, 0, .2, 0); mk(warm, FXG.disc, FXM.crater, 3, .2, 0); mk(warm, skidMesh.geometry, skidMesh.material, -3, .2, 2);
+  mk(warm, FXG.ball, FXM.ball, -4, 1, 0); mk(warm, FXG.ring, FXM.marker, 0, .2, 0); mk(warm, skidMesh.geometry, skidMesh.material, -3, .2, 2);
   mk(warm, FXG.flash, FXM.flash, 0, 2, 0); mk(warm, FXG.boulder, FXM.boulder, 4, 2, 0); mk(warm, FXG.barrel, FXM.barrel, -2, 1, 3); mk(warm, FXG.band, FXM.band, -2, 1.5, 3);
   mk(warm, FXG.tent, FXM.tent, 2, 0, 3); mk(warm, sph(.4, 8, 6), FXM.suck, 1, 1, 3); mk(warm, FXG.woolBody, FXM.wool, 0, 1, 4); mk(warm, box(.5, .5, .5), FXM.dark, 1, 1, 4);
   mk(warm, box(.6, .1, .6), mat('#7a5034', { roughness: .9 }), 3, .5, 4);

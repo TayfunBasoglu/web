@@ -108,6 +108,7 @@ export async function agBaslat({ kok, oyun, yerel }) {
   const gizli = () => document.hidden || !!window.__testGizli;
   let bagli = true, ilkBaglanti = false, baskaYerde = false, aktifSon = null;   // aktifSon: hesabın sunucudaki geçerli oturumu
   let lobi = null;                 // içinde bulunulan lobi oturumu (yoksa liste ekranı)
+  let izle = null;                 // izlenen yarış (oyuncu olarak girilmez, hiçbir şey yazılmaz: kimse bilmez)
   let lobiler = {}, listeGeldi = false, otomatikDenendi = false, listeNotu = '', kuruluyor = false;
   let sonCizim = '';
 
@@ -140,6 +141,7 @@ export async function agBaslat({ kok, oyun, yerel }) {
     if (izinYok) return goster(menuUst, `<h2 class="it">LOBİYE GİRİLEMEDİ</h2><div class="alt">${hataMetni}</div>`);
     if (baskaYerde) return goster(menuUst, '<h2 class="it">BAŞKA YERDE AÇIK</h2><div class="alt">Bu hesapla yarış başka bir sekmede ya da cihazda açıldı. Oradan devam edebilirsin.</div>');
     if (!bagli) return goster(menuUst, '<h2 class="it">BAĞLANTI KOPTU</h2><div class="alt">İnternet bağlantın geri gelince otomatik olarak yeniden bağlanılacak.</div>');
+    if (izle) return izle.ciz();
     if (lobi) return lobi.ciz();
     listeCiz(menuUst);
   }
@@ -152,17 +154,23 @@ export async function agBaslat({ kok, oyun, yerel }) {
   // katılınabilenler üstte, kalabalık olan önce
   const acikLobiler = () => Object.entries(lobiler).filter(([, l]) => canliLobi(l))
     .sort((a, b) => (katilinir(b[1]) - katilinir(a[1])) || ((+b[1].kisi || 0) - (+a[1].kisi || 0)));
+  // lobi satırları (liste ekranında ve lobinin içindeki "Diğer lobiler"de): katılınabilene Katıl, yarışı sürene İzle
+  function lobiSatirlari(haric = null) {
+    return acikLobiler().filter(([id]) => id !== haric).map(([id, l]) => {
+      const ac = katilinir(l), dolu = l.faz === 'lobi' && !ac, izlenir = l.faz === 'yaris';
+      const dugme = ac ? `<button class="lbtn2" data-act="katil" data-v="${esc(id)}">Katıl</button>`
+        : izlenir ? `<button class="lbtn2" data-act="izle" data-v="${esc(id)}">İzle</button>`
+          : `<button class="lbtn2" disabled>${dolu ? 'Dolu' : 'Yarış bitince'}</button>`;
+      return `<div class="lsatir${ac || izlenir ? '' : ' kapali'}"><b>${esc(l.ad)}</b><span>${+l.kisi || 0}/${MAX_OYUNCU} oyuncu · ${dolu ? 'Dolu' : FAZ_AD[l.faz] || ''}</span>${dugme}</div>`;
+    }).join('');
+  }
   function listeCiz(ust) {
     if (!listeGeldi || kuruluyor) return goster(ust, `<h2 class="it">${kuruluyor ? 'Lobi kuruluyor…' : 'Lobilere bağlanılıyor…'}</h2>${yavasNot()}`);
-    const satirlar = acikLobiler().map(([id, l]) => {
-      const ac = katilinir(l), dolu = l.faz === 'lobi' && !ac;
-      return `<div class="lsatir${ac ? '' : ' kapali'}"><b>${esc(l.ad)}</b><span>${+l.kisi || 0}/${MAX_OYUNCU} oyuncu · ${dolu ? 'Dolu' : FAZ_AD[l.faz] || ''}</span>` +
-        `<button class="lbtn2" data-act="katil" data-v="${esc(id)}"${ac ? '' : ' disabled'}>${ac ? 'Katıl' : dolu ? 'Dolu' : 'Yarış bitince'}</button></div>`;
-    }).join('');
+    const satirlar = lobiSatirlari();
     goster(ust, `<h2 class="it">LOBİLER</h2>${listeNotu ? `<div class="alt">${listeNotu}</div>` : ''}
       <div class="lliste">${satirlar || '<div class="alt">Şu an açık lobi yok.</div>'}</div>
       <button class="lbtn" data-act="kur">+ YENİ LOBİ KUR</button>
-      <div class="alt">Bir lobiye katıl ya da kendi lobini kur. Oylaması ya da yarışı başlamış lobiye, yarış bitince katılabilirsin.</div>`);
+      <div class="alt">Bir lobiye katıl ya da kendi lobini kur. Yarışı süren lobiyi <b>izleyebilir</b>, yarış bitince katılabilirsin.</div>`);
   }
   // terk edilmiş lobiler (herkes aniden kaybolmuş) listeyi gören ilk kişi tarafından silinir
   function copTopla() {
@@ -172,12 +180,12 @@ export async function agBaslat({ kok, oyun, yerel }) {
     }
   }
   function otomatikKur() {   // hiç lobi yoksa ilk gelen için lobi kendiliğinden kurulur (sayfa açılışında bir kez)
-    if (otomatikDenendi || lobi || !listeGeldi || !ilkBaglanti || !bagli || izinYok || baskaYerde) return;
+    if (otomatikDenendi || lobi || izle || !listeGeldi || !ilkBaglanti || !bagli || izinYok || baskaYerde) return;
     otomatikDenendi = true;
     if (!acikLobiler().length) lobiKur();
   }
   async function lobiKur() {
-    if (lobi || kuruluyor || izinYok || baskaYerde || !bagli) return;
+    if (lobi || izle || kuruluyor || izinYok || baskaYerde || !bagli) return;
     kuruluyor = true; listeNotu = ''; ciz();
     const id = db.yeniId();
     try {
@@ -186,7 +194,7 @@ export async function agBaslat({ kok, oyun, yerel }) {
     } catch (e) { kuruluyor = false; hataGoster(e); ciz(); }
   }
   function lobiyeGir(id, yeni = false) {
-    if (lobi || izinYok || baskaYerde) return;
+    if (lobi || izle || izinYok || baskaYerde) return;
     const l = lobiler[id];
     if (!yeni && (!l || !katilinir(l))) { listeNotu = 'Bu lobide yarış başladı ya da lobi doldu. Başka bir lobi seç ya da yeni lobi kur.'; return ciz(); }
     listeNotu = '';
@@ -204,10 +212,39 @@ export async function agBaslat({ kok, oyun, yerel }) {
     baskaYerde = true;
     // lobideki kaydımız bu sekmeye aitse sil: yoksa lobide "bekliyor…" diye kalan hayalet oyuncu yarışın başlamasını engellerdi
     if (lobi) db.islem(Y + 'lobi/' + lobi.id + '/oyuncular/' + ben, (cur) => (cur && cur.oturum === oturum ? null : undefined)).catch(() => {});
-    lobi?.birak(); lobi = null;
+    lobi?.birak(); lobi = null; izle?.kapat();
     db.kopuncaIptal(Y + 'aktif/' + ben);   // kapanınca yeni oturumun 'aktif' kaydını silmeyelim
     oyun.lobiyeDon(); kok.classList.remove('hidden'); ciz();
   }
+
+  // ---------- yarış izleme ----------
+  // Yarışı süren bir lobi izlenir: lobiye oyuncu olarak girilmez, veritabanına hiçbir şey yazılmaz (yalnızca okunur),
+  // bu yüzden lobidekiler izlendiğini bilmez. Yarış bitip lobi yeni tura dönünce izleme kendiliğinden biter.
+  function izlemeyeGir(id) {
+    if (lobi || izle || izinYok || baskaYerde) return;
+    const K = Y + 'lobi/' + id + '/', abone = [];
+    let tur = null, bitti = false;
+    const kapat = (not = '') => {
+      if (bitti) return; bitti = true;
+      abone.forEach((f) => { try { f?.(); } catch { /* zaten kapalı */ } });
+      izle = null; listeNotu = not; sonCizim = '';
+      if (tur) oyun.lobiyeDon();
+      kok.classList.remove('hidden'); ciz();
+    };
+    izle = { id, kapat, ciz: () => goster('<div class="ust"><button class="lbtn2" data-act="izleCik">← Lobilere dön</button></div>', '<h2 class="it">Yarışa bağlanılıyor…</h2>' + yavasNot()) };
+    abone.push(db.on(K + 'durum', (d) => {
+      if (bitti) return;
+      if (!d || d.faz === 'lobi' || d.faz === 'tema' || d.faz === 'arac') return kapat(tur ? 'İzlediğin yarış bitti.' : 'Bu lobinin yarışı bitmiş.');
+      if (d.faz === 'yaris' && d.kadro && tur !== d.tur) { tur = d.tur; kok.classList.add('hidden'); oyun.izle({ kadro: d.kadro, baslangic: d.baslangic, tema: d.tema }); }
+      else if (d.faz === 'yaris' && tur === d.tur) oyun.kadroGuncelle(d.kadro);
+      else if (d.faz === 'sonuc') { if (tur === d.tur) oyun.sonucGeldi(liste(d.sonuc)); else kapat('Bu lobinin yarışı bitmiş.'); }
+    }, hataGoster));
+    abone.push(db.onAlt(K + 'canli', (k, st) => { if (!bitti) oyun.uzakDurum(k, st); }, () => {}, hataGoster));
+    abone.push(db.onAlt(K + 'engel', (eid, e) => { if (!bitti) oyun.engel(eid, e); }, () => {}, hataGoster));
+    ciz();
+  }
+  // lobideyken başka bir lobiye geçmek ya da yarış izlemek: önce bu lobiden çıkılır
+  async function lobidenSonra(fn) { if (lobi) await lobi.cik(); fn(); }
 
   // ---------- aynı hesap iki yerde: en son açılan geçerli ----------
   db.set(Y + 'aktif/' + ben, oturum).catch(() => {});
@@ -238,7 +275,9 @@ export async function agBaslat({ kok, oyun, yerel }) {
     const act = b.dataset.act;
     if (act === 'menu') return menuyeDon();
     if (act === 'kur') return lobiKur();
-    if (act === 'katil') return lobiyeGir(b.dataset.v);
+    if (act === 'katil') { const id = b.dataset.v; return lobidenSonra(() => lobiyeGir(id)); }
+    if (act === 'izle') { const id = b.dataset.v; return lobidenSonra(() => izlemeyeGir(id)); }
+    if (act === 'izleCik') return izle?.kapat();
     lobi?.tikla(act, b);
   }
   // Dokunmatikte düğme parmak KALKINCA çalışır (aynı düğmede basılıp bırakıldıysa). iPhone Safari'de oyun site
@@ -502,6 +541,9 @@ export async function agBaslat({ kok, oyun, yerel }) {
           h = `<h2 class="it">YARIŞ LOBİSİ</h2>${koltuklar(d)}
             <button class="lbtn${hazir ? ' on' : ''}" data-act="hazir">${hazir ? '✓ HAZIRSIN' : 'HAZIRIM'}</button>
             <div class="alt"><b>${hazirSay}/${ak.length}</b> hazır. Lobideki herkes hazır olunca tema oylaması başlar; boş koltuklara <b>bot</b> geçer.${hazir ? '<br>Vazgeçmek için tekrar bas.' : ''}</div>`;
+          // beklerken diğer lobiler de canlı görünür: oradan birine geçilebilir ya da süren bir yarış izlenebilir
+          const diger = lobiSatirlari(lobiId);
+          if (diger) h += `<div class="alt">Diğer lobiler</div><div class="lliste kisa">${diger}</div>`;
         } else if (d.faz === 'tema') {
           const oyu = turDegeri(benimki.oy, d.tur);
           const kart = TEMALAR.map((t) => {
@@ -615,9 +657,9 @@ export async function agBaslat({ kok, oyun, yerel }) {
     engelId: () => lobi?.engelId() || 'e' + Math.random().toString(36).slice(2, 7),
     engelEkle: (...a) => lobi?.engelEkle(...a),
     engelVur: (id) => lobi?.engelVur(id),
-    lobiGoster() { kok.classList.remove('hidden'); sonCizim = ''; ciz(); },
+    lobiGoster() { if (izle) return izle.kapat(); kok.classList.remove('hidden'); sonCizim = ''; ciz(); },
     // yarıştaki "✕ ÇIK" ve telefonun geri tuşu: lobideyse lobiden çıkıp listeye döner, listedeyse menüye
-    cik() { if (lobi) lobi.cik(); else menuyeDon(); },
+    cik() { if (izle) izle.kapat(); else if (lobi) lobi.cik(); else menuyeDon(); },
   };
   ciz();
   return api;

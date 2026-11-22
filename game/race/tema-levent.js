@@ -6,7 +6,7 @@
 // Bu dosya oyunun ortak araçlarını index.html'deki API nesnesinden alır. Binalarda logo/marka yoktur.
 export function tema(A) {
   const { THREE, mk, mat, box, cyl, sph, canvasTex, frameAt, F1, F2, ribbon, pedKur, PED_YERI,
-    inRange, sd, clamp, lerp, sstep, rand, srand, HW, UP, emit, knock, hitRacers, addFx, FXG, FXM, dummy } = A;
+    inRange, sd, clamp, lerp, sstep, rand, srand, HW, emit, knock, hitRacers, addFx, FXG, FXM, dummy } = A;
 
   /* ---------- ölçek ve harita ----------
      Noktalar Google Haritalar uydu/harita görünümünden (yakınlık 18, merkez 41.0808 K, 29.0122 D) piksel olarak
@@ -17,6 +17,7 @@ export function tema(A) {
   const pxOf = p => [p.x / F + 632, p.z / F + 417];
   const KAT = met(3.8), BAY = met(3.6);                  // kat yüksekliği, pencere aralığı
   const SOKAK_KENAR = HW + 9.4;                          // yarış sokağının asfalt kenarı (bordür)
+  const YOL_Y = .2;                                      // asfaltın orta çizgiden yüksekliği (yan sokakların üstünde)
 
   // Saat yönünde (haritada): Talatpaşa'dan batıya → Büyükdere yan yolundan kuzeye → Ahmet Kemal Aru'dan doğuya →
   // Çamlık / Hacı Adil'den güneye → Çayırçimen'den batıya → Talatpaşa'dan kuzeybatıya
@@ -493,7 +494,7 @@ export function tema(A) {
     }
 
     /* yarış sokağı: asfalt, kerb, kaçış payı, beton bariyer, sokak kenarı ve bordür */
-    ribbon(-HW, HW, .2, .2, 12, M.yol, true);
+    ribbon(-HW, HW, YOL_Y, YOL_Y, 12, M.yol, true);
     ribbon(HW, HW + 1.3, .21, .21, 3, M.kerb, true); ribbon(-HW - 1.3, -HW, .21, .21, 3, M.kerb, true);
     ribbon(HW + 1.3, SOKAK_KENAR, .19, .19, 20, M.kacis, true); ribbon(-SOKAK_KENAR, -HW - 1.3, .19, .19, 20, M.kacis, true);
     const BH = 2.3;
@@ -770,11 +771,11 @@ export function tema(A) {
     }
 
     /* yeşil hız pedleri: virajların içine değil, çıkışına */
-    const pads = pedKur(PED_YERI, Z.koseler);
+    const pads = pedKur(PED_YERI, Z.koseler, YOL_Y);   // asfaltın üstünde (eskiden altında kalıp görünmüyordu)
     // gökyüzü
     RG.gok = new THREE.Mesh(new THREE.SphereGeometry(3000, 32, 16), new THREE.MeshBasicMaterial({ map: gokTex, side: THREE.BackSide, fog: false, depthWrite: false }));
     RG.gok.renderOrder = -10; RG.gok.frustumCulled = false; RG.gok.userData.noMerge = true; D.add(RG.gok);
-    return { pads, env: ENV };
+    return { pads, env: ENV, yolY: YOL_Y };   // ortak kod araçları ve yol engellerini bu yüksekliğe oturtur
   }
 
   // virajlar: iki yanındaki yön farkı büyük olan aralıklar (hız pedleri ve yol engelleri buraya konmaz)
@@ -880,7 +881,8 @@ export function tema(A) {
       if (r.t >= r.T || !aktif) Z.ruzgar = null;
       else {
         const gust = hedef * r.dir * (3.4 + 1.8 * Math.sin(A.time * 2.3) + 1 * Math.sin(A.time * 5.1));
-        for (const o of A.racers) { if (o.remote) continue; const lim = o.me && !A.AUTO_ALL ? A.wallLim(o) : HW - 1.3; o.x = clamp(o.x + gust * dt * (o.me ? 1 : .5), -lim, lim); }
+        // yalnızca rüzgârın estiği yerdekiler itilir (oyuncunun çevresi; pistin öbür ucundaki botlar değil)
+        for (const o of A.racers) { if (o.remote || Math.abs(o.s - me.s) > 160) continue; const lim = o.me && !A.AUTO_ALL ? A.wallLim(o) : HW - 1.3; o.x = clamp(o.x + gust * dt * (o.me ? 1 : .5), -lim, lim); }
         if ((r.tozT -= dt) <= 0) {   // savrulan toz ve kâğıtlar: rüzgârın yönünü gösterir
           r.tozT = .04; frameAt(me.s + rand(15, 70), F1);
           const o = -r.dir * rand(14, 26), x = F1.p.x + F1.r.x * o, z = F1.p.z + F1.r.z * o, v = rand(18, 30) * hedef;
@@ -897,13 +899,14 @@ export function tema(A) {
   function kovaDusur(s) {
     const me = A.me, x = Math.random() < .5 ? yakinSerit(me.x) : A.LANES[Math.floor(Math.random() * 4)];
     FG.kova ??= new THREE.CylinderGeometry(KOVA_R, KOVA_R * .78, 2.1, 20);
-    const hedef = A.roadPt(s, x); hedef.y += KOVA_R * .9;
+    // yan yatan kova asfaltın üstünde durur (geniş ağzı asfalta değer; eskiden 30 cm gömülüyordu)
+    const zemin = A.roadPt(s, x).y + YOL_Y, hedef = A.roadPt(s, x); hedef.y = zemin + KOVA_R;
     const from = RG.iskele.clone();
     const g = new THREE.Group(); A.scene.add(g);
     FG.sap ??= new THREE.TorusGeometry(KOVA_R * .9, .08, 6, 20, Math.PI);
     mk(g, FG.kova, M.kova); mk(g, FG.sap, M.direk, 0, 1.05, 0);
     A.kenarlik(g, 'kirmizi', .2);
-    const mark = new THREE.Mesh(FXG.ring, FXM.marker.clone()); mark.position.copy(hedef); mark.position.y = hedef.y - KOVA_R * .9 + .25; mark.scale.setScalar(.55); A.scene.add(mark);
+    const mark = new THREE.Mesh(FXG.ring, FXM.marker.clone()); mark.position.copy(hedef); mark.position.y = zemin + .05; mark.scale.setScalar(.55); A.scene.add(mark);
     frameAt(s, F1); const yaw = Math.atan2(F1.t.x, F1.t.z);
     const T = 2.1; let t = 0, yer = 0, ucan = null; const hit = new Set(), eng = A.olayEngel(s, x, 0);
     A.toast('KOVA DÜŞÜYOR!'); A.SES.islik(T, () => g.position);
@@ -923,7 +926,7 @@ export function tema(A) {
         }
         if (!ucan) {
           yer += dt;
-          hitRacers(s, x, 1.3, 1.4, r => {
+          hitRacers(s, x, 1.15, 1.1, r => {   // alan yatan kova kadar
             knock(r, { slow: .7, jump: 2.4, kick: rand(-.25, .25), shake: .4, msg: 'KOVA!' });
             A.SES.tok(g.position, { f0: 180, f1: 80, sure: .18, guc: .5, parlak: 3000, gurultuG: .4 });
             if (!ucan) { frameAt(s, F2); ucan = { v: F2.t.clone().multiplyScalar(r.v * .55).setY(12), t: 0 }; A.OLAY_ENGEL.delete(eng); }
@@ -931,7 +934,7 @@ export function tema(A) {
           if (me.s > s + 120) { this.dispose(); return false; }
         } else {
           ucan.t += dt; ucan.v.y -= 40 * dt; g.position.addScaledVector(ucan.v, dt); g.rotation.x += 7 * dt;
-          if (g.position.y < KOVA_R) { g.position.y = KOVA_R; ucan.v.multiplyScalar(.5); ucan.v.y = Math.abs(ucan.v.y) * .35; }
+          if (g.position.y < zemin + KOVA_R) { g.position.y = zemin + KOVA_R; ucan.v.multiplyScalar(.5); ucan.v.y = Math.abs(ucan.v.y) * .35; }
           if (ucan.t > 2.5) { this.dispose(); return false; }
         }
         return true;
@@ -960,7 +963,8 @@ export function tema(A) {
           const cit = Math.max(0, 3.4 - Math.abs(Math.abs(b.o.x) - (HW + 3.8)));   // bariyerin üstünden seker
           frameAt(b.s, F1); b.m.position.copy(F1.p).addScaledVector(F1.r, b.o.x); b.m.position.y += SIMIT_R + SIMIT_T + .2 + cit * .95;
           b.m.rotateOnWorldAxis(F1.t, -b.o.dir * v * dt / (SIMIT_R + SIMIT_T));
-          if (git) hitRacers(b.s, b.o.x, SIMIT_T + .3, SIMIT_R + SIMIT_T, r => {
+          // simit yalnızca yerdeyken vurur (bariyerin üstünden sekerken altından geçilir); alan simidin kalınlığı kadar
+          if (git && cit < .5) hitRacers(b.s, b.o.x, SIMIT_T + .05, SIMIT_R + SIMIT_T, r => {
             b.bitti = true; A.scene.remove(b.m); A.OLAY_ENGEL.delete(b.eng); A.SES.kirilma(b.m.position, 'tahta');
             knock(r, { slow: .76, jump: 2, kick: b.o.dir * .22, shake: .3, msg: dedi ? '' : 'SİMİT!' }); dedi = true;
             A.shatter(b.m.position, F1.t.clone().multiplyScalar(r.v * .4), FG.kirinti, M.simit, 7, rand(.5, .8));
@@ -977,16 +981,17 @@ export function tema(A) {
   function suPatlat(s) {
     const me = A.me, x = A.LANES[Math.floor(Math.random() * 4)];
     const p = A.roadPt(s, x); p.y += .22;
-    const kapak = mk(A.scene, FG.kapak, M.rogar); kapak.position.copy(p);
+    // rögar kapağı patlamaya kadar yolda durmaz (etkisiz nesne olmasın): patlama anında yerinden fırlar
+    const kapak = mk(A.scene, FG.kapak, M.rogar); kapak.position.copy(p); kapak.visible = false;
     const su = new THREE.Mesh(FG.su, M.su); su.position.copy(p); su.scale.set(1, .01, 1); A.scene.add(su);
     const bir = new THREE.Mesh(FG.birikinti, M.birikinti); bir.position.copy(p); bir.position.y += .03; A.scene.add(bir);
     A.kenarlik(bir, 'kirmizi', .3); bir.scale.setScalar(.01);   // kenarlık tam boyda hesaplanır, birikinti sonra büyür
-    let t = 0, bekle = 0, bas = false, kv = null, sesT = 0; const hitS = new Set(), hitB = new Set(), eng = A.olayEngel(s, x, 1.8);
+    let t = 0, bekle = 0, bas = false, kv = null, sesT = 0; const hitS = new Set(), hitB = new Set(), eng = A.olayEngel(s, x, 0);   // botlar patlamadan önce görünmeyen şeyden kaçmasın
     const SURE = 6;
     addFx({
       update(dt) {
         if (!bas) {   // yaklaşmanı bekler (en fazla 60 sn; sonra olay iptal olur)
-          if (s - me.s < 320) { bas = true; A.SES.tok(p, { f0: 140, f1: 50, sure: .3, guc: .7, parlak: 1200, gurultuG: .6 }); A.SES.sicrama(p); kv = new THREE.Vector3(rand(-3, 3), 26, rand(-3, 3)); }
+          if (s - me.s < 320) { bas = true; kapak.visible = true; eng.w = 1.8; A.SES.tok(p, { f0: 140, f1: 50, sure: .3, guc: .7, parlak: 1200, gurultuG: .6 }); A.SES.sicrama(p); kv = new THREE.Vector3(rand(-3, 3), 26, rand(-3, 3)); }
           else { bekle += dt; return bekle < 60 || (this.dispose(), false); }
         }
         t += dt;
@@ -996,8 +1001,17 @@ export function tema(A) {
         bir.scale.setScalar(Math.max(.01, sstep(0, 1.2, t)));
         if (k > .05 && (sesT -= dt) <= 0) { sesT = .9; A.SES.sicrama(p); }
         if (k > .05) for (let i = 0; i < 2; i++) emit(p.x + rand(-.6, .6), p.y + su.scale.y, p.z + rand(-.6, .6), rand(-4, 4), rand(1, 4), rand(-4, 4), rand(.6, 1.1), rand(.5, .9));
-        if (k > .3) hitRacers(s, x, 1.1, 1.1, r => knock(r, { slow: .66, jump: 4.5, kick: rand(-.25, .25), shake: .5, msg: 'SU BORUSU PATLADI!' }), hitS, 3);
-        if (t > .6) hitRacers(s, x, 1.8, 1.8, r => { if (hitS.has(r) || A.kalkanKullan(r)) return; r.slipT = Math.max(r.slipT, 1.1); r.slipDir = Math.random() < .5 ? -1 : 1; r.v *= .92; if (r.me) A.toast('ISLAK ZEMİN!'); }, hitB, .3);
+        // su sütunu: görünür yükseklikteyken (≥ ~1 m) vurur; başta ve sonda görünüp vurmayan an kalmasın
+        if (k > .07) hitRacers(s, x, 1.1, 1.1, r => knock(r, { slow: .66, jump: 4.5, kick: rand(-.25, .25), shake: .5, msg: 'SU BORUSU PATLADI!' }), hitS, 3);
+        // birikinti: etki alanı görünen daireyle birlikte büyür (arabanın gövdesi daireye değince kayar)
+        const rb = 1.8 * bir.scale.x;
+        if (rb > .4) for (const r of A.racers) {
+          if (r.remote || hitB.has(r) || r.y > .3) continue;
+          const ex = Math.max(0, Math.abs(r.x - x) - r.car.hw), es = Math.max(0, Math.abs(r.s - s) - r.car.hl);
+          if (ex * ex + es * es > rb * rb) continue;
+          hitB.add(r); if (hitS.has(r) || A.kalkanKullan(r)) continue;
+          r.slipT = Math.max(r.slipT, 1.1); r.slipDir = Math.random() < .5 ? -1 : 1; r.v *= .92; if (r.me) A.toast('ISLAK ZEMİN!');
+        }
         if (me.s > s + 120 || t > 40) { this.dispose(); return false; }
         return true;
       },

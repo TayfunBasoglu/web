@@ -17,7 +17,7 @@ export function tema(A) {
   const YOL = [
     [90, 520], [90, 380], [90, 240], [96, 150], [130, 100], [200, 88], [330, 88], [460, 88], [560, 95],
     [630, 118], [720, 135], [800, 141], [855, 153], [890, 182], [900, 230], [900, 300], [900, 370],
-    [897, 425], [872, 468], [815, 487, .15], [740, 486, .38], [640, 485, .38], [545, 486, .38], [475, 500, .15],
+    [897, 425], [872, 468], [815, 487], [740, 486], [640, 485], [545, 486], [475, 500],   // kilim ince ve yolun altında: yol yükselmez
     [400, 540], [330, 597], [260, 638], [180, 650], [120, 630], [92, 590]];
   const CTRL = YOL.map(([x, z, y = 0]) => [c(x), y, c(z)]);
   const BORU_R = 15, BORU_DIS = 16.2, BORU_Y = BORU_DIS;   // karton borunun iç/dış yarıçapı (birim), yerde yatıyor
@@ -347,11 +347,16 @@ export function tema(A) {
     /* --- yemek masası, sandalyeler, kilim --- */
     {
       const mx = 640, mz = 485;
-      mk(D, new THREE.PlaneGeometry(c(300), c(200)).rotateX(-Math.PI / 2), M.kilim, c(mx), .36, c(mz), { cast: false, recv: true });
-      mk(D, new THREE.BoxGeometry(c(300), .3, c(200)), mat('#7c261d', { roughness: 1 }), c(mx), .15, c(mz), { cast: false, recv: true });   // kalınlık (üstü desenin altında kalır)
-      // püsküller
+      // kilim ince ve yolun (bant .06) ALTINDA: yol, süt birikintisi ve izler kilimin üstünde görünür
+      mk(D, new THREE.PlaneGeometry(c(300), c(200)).rotateX(-Math.PI / 2), M.kilim, c(mx), .035, c(mz), { cast: false, recv: true });
+      mk(D, new THREE.BoxGeometry(c(300), .03, c(200)), mat('#7c261d', { roughness: 1 }), c(mx), .015, c(mz), { cast: false, recv: true });   // kalınlık (üstü desenin altında kalır)
+      // püsküller: yolun üstüne/kenarına düşenler konmaz (yolda içinden geçilen, etkisiz çubuk olmasın)
       const pg = cyl(.18, .18, c(4), 4), pm = mat('#efe5cf', { roughness: 1 });
-      for (const sx of [-1, 1]) for (let z = -95; z <= 95; z += 4) mk(D, pg, pm, c(mx + sx * 152), .2, c(mz + z), { r: [0, 0, Math.PI / 2], cast: false });
+      for (const sx of [-1, 1]) for (let z = -95; z <= 95; z += 4) {
+        const px = c(mx + sx * 152), pz = c(mz + z);
+        if (A.roadNear(px, pz).d < HW + 4.5) continue;
+        mk(D, pg, pm, px, .03, pz, { r: [0, 0, Math.PI / 2], cast: false });
+      }
       // masa
       kutu(D, 180, 4, 90, M.masa, mx, 71, mz, { recv: true });
       kutu(D, 166, 8, 3, M.masa, mx, 63, mz - 40); kutu(D, 166, 8, 3, M.masa, mx, 63, mz + 40);
@@ -409,6 +414,21 @@ export function tema(A) {
         r.position.copy(mid).addScaledVector(dir, sgn * len / 2); r.quaternion.copy(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), dir)); D.add(r);
       }
       golge(D, mid.x + 6, mid.z, BORU_DIS * 1.4, len * .55, .4, Math.atan2(dir.x, dir.z));
+      // ağızların önündeki karton rampalar: yüzeyi aracın yüksekliğini veren yuzey() ile aynı (araç tam üstünde gider)
+      const rm = M.boruic.clone(); rm.side = THREE.DoubleSide;
+      for (const [s0, s1] of [[boru.a - RAMPA, boru.a + 1], [boru.b - 1, boru.b + RAMPA]]) {
+        const ns = 14, nx = 16, X = HW + 1.3, pos = [], uv = [], idx = [];
+        for (let i = 0; i <= ns; i++) {
+          const s = s0 + (s1 - s0) * i / ns; frameAt(s, F1);
+          for (let j = 0; j <= nx; j++) {
+            const x = -X + 2 * X * j / nx, yz = yuzey(s, x);
+            pos.push(F1.p.x + F1.r.x * x, F1.p.y + .055 + (yz ? yz.dy : 0), F1.p.z + F1.r.z * x); uv.push(j / nx * 2, i / ns);
+          }
+        }
+        for (let i = 0; i < ns; i++) for (let j = 0; j < nx; j++) { const a = i * (nx + 1) + j, b = a + nx + 1; idx.push(a, b, a + 1, b, b + 1, a + 1); }
+        const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.setIndex(idx); g.computeVertexNormals();
+        const m = new THREE.Mesh(g, rm); m.receiveShadow = true; D.add(m);
+      }
     }
 
     /* --- pist: bantlar, kenar bantları, karton bariyer, mandallar --- */
@@ -441,9 +461,9 @@ export function tema(A) {
       for (const [x, z, r] of [[-5, -3, .3], [1, 2, -.2], [6, -4, .6]]) mk(g, new THREE.CapsuleGeometry(c(1.2), c(7), 6, 14).rotateZ(Math.PI / 2), M.sosis, c(x), c(2.6), c(z), { r: [0, r, 0] });
     }
 
-    const pads = pedKur(PED_YERI, [[boru.a, boru.b]]);
+    const pads = pedKur(PED_YERI, [[boru.a, boru.b]], .06);
     // kedi nefes alıyor, buzdolabı kapısı hafifçe titriyor
-    return { pads, env: ENV };
+    return { pads, env: ENV, yolY: .06 };
   }
 
   /* ---------- yardımcı yapıcılar ---------- */
@@ -595,9 +615,12 @@ export function tema(A) {
   /* =========================================================
      KAVİSLİ ZEMİN: karton borunun içinde araç duvara tırmanır
      ========================================================= */
-  function boruK(s) {   // 0 dışarıda … 1 içeride (ağızlarda yumuşak geçiş)
+  // 0 dışarıda … 1 içeride. Yükselme ağızdan önceki 10 birimlik karton rampada olur, ağızda tam yüksekliktedir
+  // (eskiden ağızda araç tüp tabanının 0,5 m altında kalıyor, öncesinde boşlukta süzülüyordu)
+  const RAMPA = 10;
+  function boruK(s) {
     if (!inRange(s, boru.a - 30, boru.b + 30)) return 0;
-    return sstep(-6, 5, sd(s, boru.a)) * sstep(-6, 5, sd(boru.b, s));
+    return sstep(-RAMPA, 0, sd(s, boru.a)) * sstep(-RAMPA, 0, sd(boru.b, s));
   }
   function yuzey(s, x) {
     const k = boruK(s); if (k <= 0) return null;
@@ -682,7 +705,7 @@ export function tema(A) {
           if (me.car.root.position.distanceTo(hedef) < 50) A.sarsinti(.35);
         }
         yer += dt;
-        hitRacers(s, x, 7, 1.8, r => { if (!hit.has(r)) knock(r, { slow: .72, jump: 2.5, kick: rand(-.2, .2), shake: .3, msg: 'SOSİS!' }); }, carp);
+        if (yer <= 3.2) hitRacers(s, x, 7, 1.8, r => { if (!hit.has(r)) knock(r, { slow: .72, jump: 2.5, kick: rand(-.2, .2), shake: .3, msg: 'SOSİS!' }); }, carp);   // küçülüp kaybolurken vurmaz
         if (yer > 3.2) { const k = clamp((yer - 3.2) / .4, 0, 1); m.scale.setScalar(1 - k); eng.w = 0; }
         if (yer > 3.6 || me.s > s + 160) { this.dispose(); return false; }
         return true;
@@ -709,7 +732,7 @@ export function tema(A) {
           if (git) { b.vy -= 70 * dt; b.y += b.vy * dt; if (b.y < BUZ_B / 2 + .05) { b.y = BUZ_B / 2 + .05; if (!b.yere) { b.yere = true; frameAt(b.s, F1); A.SES.tok(F1.p.clone().addScaledVector(F1.r, b.o.x), { f0: 420, f1: 180, sure: .09, guc: .3, parlak: 6000, gurultuG: .45 }); } b.vy = Math.abs(b.vy) > 10 ? -b.vy * .25 : 0; } }
           const v = git && b.yere && (b.gec -= dt) <= 0 ? A.yanAdim(b.o, dt) : 0; b.eng.x = b.o.x;
           frameAt(b.s, F1); b.m.position.copy(F1.p).addScaledVector(F1.r, b.o.x); b.m.position.y += b.y; b.m.rotation.y += b.w * dt * (v > .5 ? 1 : .05);
-          if (git) hitRacers(b.s, b.o.x, BUZ_B / 2 + .2, BUZ_B / 2, r => {
+          if (git && b.y < BUZ_B / 2 + 1) hitRacers(b.s, b.o.x, BUZ_B / 2 + .2, BUZ_B / 2, r => {   // yalnızca yere inmiş küp vurur (havadakinin altından geçilir)
             b.bitti = true; A.scene.remove(b.m); A.OLAY_ENGEL.delete(b.eng); A.SES.kirilma(b.m.position, 'buz');
             const korundu = r.kalkanT > 0;   // kalkan darbeyi de kaymayı da karşılar
             knock(r, { slow: .8, kick: dir * .2, shake: .3, msg: dedi ? '' : 'BUZ!' }); dedi = true;
@@ -776,8 +799,9 @@ export function tema(A) {
           const cit = Math.max(0, 3.5 - Math.abs(Math.abs(o.x) - (HW + 3.6)));   // karton bariyerin üstünden zıplar
           m.position.copy(F1.p).addScaledVector(F1.r, o.x); m.position.y = F1.p.y + YUN_R + cit * .9;
           m.rotateOnWorldAxis(F1.t, o.dir * v * dt / YUN_R);
-          hitRacers(s, o.x, YUN_R + .3, YUN_R, r => {
+          if (cit < .6) hitRacers(s, o.x, YUN_R + .3, YUN_R, r => {   // bariyerin üstünden zıplarken vurmaz
             knock(r, { slow: .72, jump: 2.5, kick: o.dir * .3, shake: .4, msg: 'YÜN YUMAĞI!' }); A.OLAY_ENGEL.delete(eng);
+            ip.visible = false;   // ip de kalkar: yolun üstünde etkisiz çizgi kalmasın
             A.SES.tok(m.position, { f0: 70, f1: 40, sure: .15, guc: .35, parlak: 400, gurultuG: .5 });
             ucan = { v: F1.t.clone().multiplyScalar(r.v * .55).setY(14), t: 0 };
           }, hit);
@@ -794,6 +818,7 @@ export function tema(A) {
       dispose() { A.scene.remove(m); A.scene.remove(ip); ip.geometry.dispose(); ip.material.dispose(); A.OLAY_ENGEL.delete(eng); }
     });
   }
+  if (A.DBG.has('debug')) window.__mutfak = { sosis: sosisFirlat, buz: () => buzKaydir(A.me.s + 200), kofte: () => kofteDusur(A.me.s + 200), yun: () => yunYumagi(A.me.s + 200) };
 
   return {
     id: 'mutfak', ad: 'DEV MUTFAK', baslik: 'Dev Mutfak', ctrl: CTRL, start: [c(90), c(330)], seed: 7702,

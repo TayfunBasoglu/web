@@ -631,7 +631,7 @@ export function tema(A) {
   }
   function olay(dt, raceT) {
     const me = A.me, p = me.car.root.position;
-    const aktif = raceT > 0 && !me.finished, reg = bolgeAdi(p);
+    const aktif = A.olayAcik(raceT), reg = bolgeAdi(p);   // sonuç ekranında olay başlamaz
     // tavadan sosis tepeden düşer: yalnızca ocak başındayken. Yandan gelenler (buz, köfte, yün) ise
     // o noktaya yaklaşırken önceden yola çıkar ki yolun ortasına vardığında sen hâlâ uzakta ol.
     // Olaylar ortak sıraya uyar (iyi/kötü fark etmez, iki olay arasında 10–15 sn): sıra gelince o an
@@ -687,7 +687,7 @@ export function tema(A) {
         if (yer > 3.6 || me.s > s + 160) { this.dispose(); return false; }
         return true;
       },
-      dispose() { A.scene.remove(m); A.scene.remove(mark); A.OLAY_ENGEL.delete(eng); }
+      dispose() { A.scene.remove(m); A.scene.remove(mark); mark.material.dispose(); A.OLAY_ENGEL.delete(eng); }
     });
   }
   // --- Buzdolabı: aralıktan buz küpleri banketlere düşer; ilk şeride hızla kayar, oradan ortaya yavaşça ---
@@ -711,7 +711,9 @@ export function tema(A) {
           frameAt(b.s, F1); b.m.position.copy(F1.p).addScaledVector(F1.r, b.o.x); b.m.position.y += b.y; b.m.rotation.y += b.w * dt * (v > .5 ? 1 : .05);
           if (git) hitRacers(b.s, b.o.x, BUZ_B / 2 + .2, BUZ_B / 2, r => {
             b.bitti = true; A.scene.remove(b.m); A.OLAY_ENGEL.delete(b.eng); A.SES.kirilma(b.m.position, 'buz');
-            knock(r, { slow: .8, kick: dir * .2, shake: .3, msg: dedi ? '' : 'BUZ!' }); dedi = true; r.slipT = Math.max(r.slipT, .9); r.slipDir = Math.random() < .5 ? -1 : 1;
+            const korundu = r.kalkanT > 0;   // kalkan darbeyi de kaymayı da karşılar
+            knock(r, { slow: .8, kick: dir * .2, shake: .3, msg: dedi ? '' : 'BUZ!' }); dedi = true;
+            if (!korundu) { r.slipT = Math.max(r.slipT, .9); r.slipDir = Math.random() < .5 ? -1 : 1; }
             A.shatter(b.m.position, F1.t.clone().multiplyScalar(r.v * .4), FG.kirinti, M.buz, 6, rand(.5, .8));
           }, b.hit);
         }

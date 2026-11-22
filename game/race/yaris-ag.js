@@ -27,6 +27,7 @@ export const MAX_OYUNCU = 5;
 export const TEMALAR = [
   { id: 'kraliyet', ad: 'Kraliyet Turu', alt: 'Kıyı yolu · Korsan koyu · Kale · Dino kanyonu · Değirmen vadisi' },
   { id: 'mutfak', ad: 'Dev Mutfak', alt: 'Dolap dibi · Ocak başı · Buzdolabı · Karton boru · Masa altı · Kedi köşesi' },
+  { id: 'levent', ad: 'Levent Plazalar · ZORLU', alt: 'Büyükdere yan yolu · Ahmet Kemal Aru Sk. · Çamlık Cd. · Çayırçimen Sk. · Talatpaşa Cd.' },
 ];
 // Araçlar yalnızca görünüşte farklıdır; hepsinin hızı ve yol tutuşu aynıdır.
 export const ARACLAR = [
@@ -105,7 +106,7 @@ export async function agBaslat({ kok, oyun, yerel }) {
   // aynı hesap başka bir sekmede/cihazda açılırsa sonra açılan geçerli olur, bu oturum kendini kapatır
   const oturum = Math.random().toString(36).slice(2, 10);
   const gizli = () => document.hidden || !!window.__testGizli;
-  let bagli = true, ilkBaglanti = false, baskaYerde = false;
+  let bagli = true, ilkBaglanti = false, baskaYerde = false, aktifSon = null;   // aktifSon: hesabın sunucudaki geçerli oturumu
   let lobi = null;                 // içinde bulunulan lobi oturumu (yoksa liste ekranı)
   let lobiler = {}, listeGeldi = false, otomatikDenendi = false, listeNotu = '', kuruluyor = false;
   let sonCizim = '';
@@ -200,14 +201,17 @@ export async function agBaslat({ kok, oyun, yerel }) {
   }
   function baskaYerdeAcildi() {
     if (baskaYerde) return;
-    baskaYerde = true; lobi?.birak(); lobi = null;
+    baskaYerde = true;
+    // lobideki kaydımız bu sekmeye aitse sil: yoksa lobide "bekliyor…" diye kalan hayalet oyuncu yarışın başlamasını engellerdi
+    if (lobi) db.islem(Y + 'lobi/' + lobi.id + '/oyuncular/' + ben, (cur) => (cur && cur.oturum === oturum ? null : undefined)).catch(() => {});
+    lobi?.birak(); lobi = null;
     db.kopuncaIptal(Y + 'aktif/' + ben);   // kapanınca yeni oturumun 'aktif' kaydını silmeyelim
     oyun.lobiyeDon(); kok.classList.remove('hidden'); ciz();
   }
 
   // ---------- aynı hesap iki yerde: en son açılan geçerli ----------
   db.set(Y + 'aktif/' + ben, oturum).catch(() => {});
-  db.on(Y + 'aktif/' + ben, (v) => { if (v && v !== oturum) baskaYerdeAcildi(); }, () => {});
+  db.on(Y + 'aktif/' + ben, (v) => { aktifSon = v || null; if (v && v !== oturum) baskaYerdeAcildi(); }, () => {});
   // eski tek lobili sürümden kalan kayıtlar (bir kez temizlenir; izin yoksa önemsiz)
   for (const k of ['oyuncular', 'durum', 'canli', 'engel']) db.remove(Y + k).catch(() => {});
 
@@ -217,7 +221,7 @@ export async function agBaslat({ kok, oyun, yerel }) {
     if (b) {
       const geriGeldi = ilkBaglanti && !bagli;
       bagli = true; ilkBaglanti = true;
-      db.kopunca(Y + 'aktif/' + ben);
+      if (!baskaYerde) db.kopunca(Y + 'aktif/' + ben);   // başka yerde açıldıysak kapanınca yeni oturumun kaydını silmeyelim
       // kopunca sunucu "aktif" kaydımızı sildi: başka sekme almadıysa geri yaz
       if (geriGeldi && !baskaYerde) db.islem(Y + 'aktif/' + ben, (cur) => (!cur || cur === oturum ? oturum : undefined)).catch(() => {});
       lobi?.baglandi(geriGeldi);
@@ -259,16 +263,22 @@ export async function agBaslat({ kok, oyun, yerel }) {
     const katilimcilar = (d) => Object.keys(d.katilimci || {}).filter((id) => oyuncular[id] && !uzun(oyuncular[id]));
     // nabzı gelen (sinyali olan) oyuncu; nabzı hiç yazılmamışsa giriş zamanı sayılır
     const canliMi = (id) => { const o = oyuncular[id]; return !!o && db.now() - Math.max(+o.nabiz || 0, +o.katilma || 0) < SURE.nabizOlu; };
+    // "Hazırım" beklenenler: ekranı açık ve sinyali gelen oyuncular (telefonu kilitlenip sinyali kesilen lobiyi bekletmez)
+    const beklenenler = () => aktifler().filter(canliMi);
+    const sonGorulme = {};   // yarışta her aracın son konum zamanı (bağlantı kopunca canli kaydı silinse de kalır)
     const gecerliTema = (t) => TEMALAR.some((x) => x.id === t), gecerliArac = (t) => ARACLAR.some((x) => x.tip === t);
     const kayip = {};   // yarışta kaydı kaybolan oyuncunun ilk kaybolma anı (kısa kopmalar affedilir)
     function kopuncaSil(yol) { if (!kopunca.has(yol)) { kopunca.add(yol); db.kopunca(yol); } }
     function kopuncaBirak() { for (const y of kopunca) db.kopuncaIptal(y); kopunca.clear(); }
     // Aşama geçişi: durum hâlâ beklenen aşama/turdaysa yazılır; başka bir cihaz önce yazdıysa vazgeçilir.
     let gecisSuruyor = false;
+    // Her yazımda sürüm (rev) bir artar ve yalnızca okunan sürüm hâlâ sunucudaysa yazılır: bağlantısı kopup dönen
+    // eski yönetici, çevrimdışıyken sıraya giren eski kararlarıyla (ör. herkesi "düştü" sayan kadro) durumu ezemez.
     function gec(d, yeni) {
+      yeni = { ...yeni, rev: ((d ? d.rev : yeni.rev) || 0) + 1 };
       sonDurum = yeni; gecisSuruyor = true;
       return db.islem(K + 'durum', (cur) => (d === null ? (cur ? undefined : yeni)
-        : cur && cur.faz === d.faz && cur.tur === d.tur ? yeni : undefined)).catch(hataGoster).finally(() => { gecisSuruyor = false; });
+        : cur && cur.faz === d.faz && cur.tur === d.tur && (cur.rev || 0) === (d.rev || 0) ? yeni : undefined)).catch(hataGoster).finally(() => { gecisSuruyor = false; });
     }
     // oturumu bitir: dinlemeyi bırak, zamanlayıcıları durdur, onDisconnect görevlerini iptal et
     function birak() {
@@ -285,6 +295,7 @@ export async function agBaslat({ kok, oyun, yerel }) {
     let secimlerim = {};   // bağlantı kısa süre koparsa yeniden girerken hazır/oy/araç seçimi kaybolmasın
     async function katilmayiDene() {
       if (bitti || katildim || giriyor || !bagli || cikiyor || baskaYerde || izinYok || !oyuncularGeldi || !durumGeldi) return;
+      if (aktifSon && aktifSon !== oturum) return;   // hesap başka sekmede/cihazda geçerli: bu sekme lobiye yazmaz
       // listeden ilk girişte: bu arada oylama/yarış başladıysa ya da lobi dolduysa girmeden listeye dön
       if (ilkGiris && !oyuncular[ben] && ((durum && durum.faz !== 'lobi') || Object.keys(oyuncular).length >= MAX_OYUNCU)) {
         birak(); return listeyeDon('Bu lobide yarış başladı ya da lobi doldu. Başka bir lobi seç ya da yeni lobi kur.');
@@ -297,7 +308,8 @@ export async function agBaslat({ kok, oyun, yerel }) {
       if (tur) for (const k of ['hazir', 'oy', 'arac']) { const v = secimlerim[k]; if (v && (v === tur || String(v).startsWith(tur + ':'))) eski[k] = v; }
       try {
         await db.set(K + 'oyuncular/' + ben, { ad: db.ad, oturum, katilma: db.damga(), nabiz: db.damga(), ...eski, ...(g ? { uzakta: db.damga() } : {}) });
-        if (bitti) return;
+        // giriş sürerken çıkıldıysa (ya da başka yerde açıldıysa) yazdığımız kayıt koltuğu sonsuza dek tutmasın
+        if (bitti) { db.islem(K + 'oyuncular/' + ben, (cur) => (cur && cur.oturum === oturum ? null : undefined)).catch(() => {}); return; }
         db.kopunca(K + 'oyuncular/' + ben); db.kopunca(K + 'canli/' + ben);
         katildim = true; ilkGiris = false; hataMetni = ''; yavas = false;
         if (gizli() !== g) db.update(K + 'oyuncular/' + ben, { uzakta: gizli() ? db.damga() : null });   // giriş sırasında ekran açıldı/kapandı
@@ -326,8 +338,9 @@ export async function agBaslat({ kok, oyun, yerel }) {
       const yeni = katildim && !cikiyor && !bitti && !gizli() && yoneticiAdayi() === ben;
       if (yeni === benHost) return;
       benHost = yeni; sonListe = '';
-      if (benHost) { kopuncaSil(K + 'durum'); kopuncaSil(K + 'engel'); kopuncaSil(LISTE); }
-      else kopuncaBirak();
+      // Not: yönetici koparsa durum/engel/liste SİLİNMEZ (silinince oylama ve araç seçimi herkes için baştan başlıyordu).
+      // Herkes aniden giderse terk edilmiş lobiyi liste ekranındaki çöp toplama 30 sn içinde siler.
+      if (!benHost) kopuncaBirak();
       oyun.hostDegisti(benHost);
     }
     // liste özeti (lobi adı, kişi sayısı, aşama): değişince hemen, değişmese de nabız için 5 sn'de bir yazılır
@@ -363,6 +376,7 @@ export async function agBaslat({ kok, oyun, yerel }) {
     }
     function hostIsle() {
       if (!benHost || gecisSuruyor || bitti) return;   // önceki aşama yazısı sunucuda onaylanmadan yenisi denenmez
+      if (!bagli) return;   // çevrimdışıyken karar verilmez (herkes "sessiz" görünür; sıraya giren yazılar dönünce durumu bozardı)
       listeYaz();
       const now = db.now(), d = durum;
       if (!d) {   // ilk kez ya da önceki yönetici ayrıldı: kaldığı yerden devam et
@@ -374,7 +388,7 @@ export async function agBaslat({ kok, oyun, yerel }) {
       if (!FAZLAR.includes(d.faz) || typeof d.tur !== 'string' || ((d.faz === 'yaris' || d.faz === 'sonuc') && !d.kadro)) return gec(d, { faz: 'lobi', tur: yeniTur() });
       if (d.faz === 'lobi') {
         // lobideki herkes (ekranı açık olanlar) "Hazırım" deyince başlar; herkes basmadan başlamaz
-        const ids = aktifler();
+        const ids = beklenenler();
         if (ids.length && ids.every((id) => oyuncular[id].hazir === d.tur)) {
           gec(d, { faz: 'tema', tur: d.tur, katilimci: Object.fromEntries(ids.map((id) => [id, true])), bitis: now + SURE.tema });
         }
@@ -394,7 +408,7 @@ export async function agBaslat({ kok, oyun, yerel }) {
       } else if (d.faz === 'yaris') {
         const insanlar = Object.entries(d.kadro).filter(([, k]) => k.insan && !k.dustu);
         // bağlantısı kopan, uzun süre ekranı kapalı kalan ya da yarışta konum yollamayan oyuncunun yerine bot geçer
-        const sessiz = (id) => now - Math.max(d.baslangic, canli[id]?.t || 0) > SURE.sessiz;
+        const sessiz = (id) => now - Math.max(d.baslangic, canli[id]?.t || 0, sonGorulme[id] || 0) > SURE.sessiz;
         // kaydı kaybolan (bağlantısı kopan) oyuncu SURE.kayip kadar beklenir: kısa kopmada yarıştan atılmaz
         const kayboldu = (id) => { if (oyuncular[id]) { delete kayip[id]; return false; } kayip[id] ??= now; return now - kayip[id] > SURE.kayip; };
         const dusen = insanlar.filter(([id]) => kayboldu(id) || (oyuncular[id] && uzun(oyuncular[id], now)) || sessiz(id));
@@ -453,7 +467,7 @@ export async function agBaslat({ kok, oyun, yerel }) {
         const id = ids[i];
         if (!id) { h.push('<div class="koltuk bos"><b>BOT</b><small>boş koltuk</small></div>'); continue; }
         const o = oyuncular[id], hazir = d && o.hazir === d.tur;
-        const etiket = o.uzakta ? 'uzakta (beklenmiyor)' : hazir ? '✓ HAZIR' : 'bekliyor…';
+        const etiket = o.uzakta ? 'uzakta (beklenmiyor)' : !canliMi(id) ? 'bağlantı yok (beklenmiyor)' : hazir ? '✓ HAZIR' : 'bekliyor…';
         h.push(`<div class="koltuk insan${id === ben ? ' ben' : ''}${o.uzakta ? ' uzak' : ''}" style="--c:${KOLTUK_RENK[i]}"><b>${esc(o.ad)}</b>` +
           `<small class="${hazir && !o.uzakta ? 'hz' : ''}">${etiket}</small>${id === yonetici ? '<small>yönetici</small>' : ''}</div>`);
       }
@@ -468,7 +482,7 @@ export async function agBaslat({ kok, oyun, yerel }) {
       else {
         const benimki = oyuncular[ben] || {}, katilimci = !!(d.katilimci && d.katilimci[ben]);
         if (d.faz === 'lobi') {
-          const hazir = benimki.hazir === d.tur, ak = aktifler(), hazirSay = ak.filter((id) => oyuncular[id].hazir === d.tur).length;
+          const hazir = benimki.hazir === d.tur, ak = beklenenler(), hazirSay = ak.filter((id) => oyuncular[id].hazir === d.tur).length;
           h = `<h2 class="it">YARIŞ LOBİSİ</h2>${koltuklar(d)}
             <button class="lbtn${hazir ? ' on' : ''}" data-act="hazir">${hazir ? '✓ HAZIRSIN' : 'HAZIRIM'}</button>
             <div class="alt"><b>${hazirSay}/${ak.length}</b> hazır. Lobideki herkes hazır olunca tema oylaması başlar; boş koltuklara <b>bot</b> geçer.${hazir ? '<br>Vazgeçmek için tekrar bas.' : ''}</div>`;
@@ -537,7 +551,12 @@ export async function agBaslat({ kok, oyun, yerel }) {
     abone.push(db.on(K + 'oyuncular', (v) => {
       if (bitti) return;
       oyuncular = v || {}; oyuncularGeldi = true;
-      if (katildim && oyuncular[ben] && oyuncular[ben].oturum !== oturum) return baskaYerdeAcildi();   // aynı hesap bu lobiye başka yerden girdi
+      // aynı hesap bu lobiye başka yerden girdi. Ama geçerli oturum hâlâ biziz ise (ör. bağlantısı dönen eski sekme
+      // bayat bilgiyle kaydımızın üstüne yazdı) çıkmayız, kaydımızı yeniden yazarız; eski sekme kendini kapatır.
+      if (katildim && oyuncular[ben] && oyuncular[ben].oturum !== oturum) {
+        if (aktifSon && aktifSon !== oturum) return baskaYerdeAcildi();
+        katildim = false;
+      }
       if (katildim && !oyuncular[ben]) katildim = false;   // kaydımız silinmiş (ör. bağlantı koptu): yeniden gir
       if (oyuncular[ben]?.oturum === oturum) secimlerim = { hazir: oyuncular[ben].hazir, oy: oyuncular[ben].oy, arac: oyuncular[ben].arac };
       // aynı anda iki kişi girip 5'i aşarsa en son giren çıkar ve listeye döner (yarış kadrosu 5 koltuk)
@@ -549,7 +568,7 @@ export async function agBaslat({ kok, oyun, yerel }) {
       guncelle();
     }, hataGoster));
     abone.push(db.on(K + 'durum', (v) => { if (bitti) return; durum = v; durumGeldi = true; durumDegisti(); katilmayiDene().then(guncelle); guncelle(); }, hataGoster));
-    abone.push(db.onAlt(K + 'canli', (k, st) => { canli[k] = st; if (k !== ben && !bitti) oyun.uzakDurum(k, st); }, (k) => { delete canli[k]; }, hataGoster));
+    abone.push(db.onAlt(K + 'canli', (k, st) => { canli[k] = st; if (+st?.t) sonGorulme[k] = Math.max(sonGorulme[k] || 0, +st.t); if (k !== ben && !bitti) oyun.uzakDurum(k, st); }, (k) => { delete canli[k]; }, hataGoster));
     abone.push(db.onAlt(K + 'engel', (id, e) => { if (!bitti) oyun.engel(id, e); }, () => {}, hataGoster));
     zaman.push(setInterval(() => { if (!bitti) { hostKontrol(); hostIsle(); sayacGuncelle(); } }, 300));
 
@@ -558,7 +577,8 @@ export async function agBaslat({ kok, oyun, yerel }) {
       id: lobiId, ciz: lobiCiz, tikla, cik, birak, bittiMi: () => bitti,
       katildiMi: () => katildim,
       // bağlantı geri gelince sunucu kaydımızı silmiştir: yeniden gir (yöneticilik baştan belirlenir)
-      baglandi(geriGeldi) { if (geriGeldi) { katildim = false; benHost = false; kopunca.clear(); } katilmayiDene().then(guncelle); },
+      // (yöneticiyken koptuysak oyuna da haber verilir: yoksa iki cihaz birden botları sürer, engel üretirdi)
+      baglandi(geriGeldi) { if (geriGeldi) { katildim = false; if (benHost) { benHost = false; oyun.hostDegisti(false); } kopunca.clear(); } katilmayiDene().then(guncelle); },
       // kendi aracının (yöneticiyse botların) anlık durumu
       gonder(anahtar, st) {
         if (cikiyor || bitti || baskaYerde || !bagli) return;   // bağlantı yokken konumlar birikip sonra topluca gitmesin
@@ -566,7 +586,8 @@ export async function agBaslat({ kok, oyun, yerel }) {
         db.set(K + 'canli/' + anahtar, { ...st, t: db.now() });
       },
       engelId: () => 'e' + (++engelNo) + Math.random().toString(36).slice(2, 5),
-      engelEkle(id, tip, s, x) { db.set(K + 'engel/' + id, { tip, s: +s.toFixed(1), x, v: 0 }); },
+      // ek: { b: oyuncunun bıraktığı (olay sırasını etkilemez), g: gecikmeli düşen tuzak }
+      engelEkle(id, tip, s, x, ek = {}) { db.set(K + 'engel/' + id, { tip, s: +s.toFixed(1), x, v: 0, ...ek }); },
       engelVur(id) { db.update(K + 'engel/' + id, { v: 1 }).catch(() => {}); },   // engel çoktan silinmişse kurallar reddeder: sorun değil
     };
   }

@@ -293,7 +293,9 @@ const NET = { on: false, host: false, ag: null, now: () => performance.now(), st
    Renderer / sahne
    ========================================================= */
 const canvas = document.getElementById('game');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+// kenar yumuşatma (MSAA) efekt zincirinin kendi çizim hedefinde yapılır; ekranın kendi tamponunda yalnızca son
+// tam ekran kare çizildiği için orada MSAA boşuna bellek ve bant genişliği harcıyordu (?low modunda açık kalır)
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: DBG.has('low'), powerPreference: 'high-performance' });
 const PR = parseFloat(DBG.get('pr')) || Math.min(devicePixelRatio, isTouch ? 1.5 : 2);
 renderer.setPixelRatio(PR);
 renderer.setSize(innerWidth, innerHeight);
@@ -317,6 +319,19 @@ sun.shadow.mapSize.set(2048, 2048);   // gölge kenarları tırtıklı olmasın
 Object.assign(sun.shadow.camera, { left: -60, right: 60, top: 60, bottom: -60, near: 1, far: 420 });
 sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.04;
 scene.add(sun, sun.target);
+// güneş (gölge kamerası) arabayı izler. Gökdelenli temalarda gölge kutusu genişler, öne kayar ve güneş
+// uzağa konur: yoksa binaların üst katları gölge düşürmez, gölgeler yola yaklaşırken birden belirir.
+const GOLGE = { kutu: 60, uzak: 200 }, gunesOn = new THREE.Vector3();
+function golgeAyarla(kutu = 60, uzak = 200) {
+  GOLGE.kutu = kutu; GOLGE.uzak = uzak;
+  Object.assign(sun.shadow.camera, { left: -kutu, right: kutu, top: kutu, bottom: -kutu, far: uzak + 220 });
+  sun.shadow.normalBias = .04 * Math.max(1, kutu / 60); sun.shadow.camera.updateProjectionMatrix();
+}
+function gunesKonumla(p) {
+  sun.target.position.copy(p);
+  if (GOLGE.kutu > 60) { camera.getWorldDirection(gunesOn); gunesOn.y = 0; gunesOn.normalize(); sun.target.position.addScaledVector(gunesOn, GOLGE.kutu * .45); }
+  sun.position.copy(sun.target.position).addScaledVector(LIGHT_DIR, GOLGE.uzak);
+}
 
 /* ---------- dokular ---------- */
 function canvasTex(w, h, draw, repeat = false) {
@@ -1257,9 +1272,25 @@ function mergeTree(root) {
    ========================================================= */
 const BASE = { top: 50, boost: 22, nitroRate: 1 / 14, nitroT: 2.2, padT: 1.3, rampT: 1.0 };
 const GRID_GAP = 5.5, GRID_FRONT = 16;
+/* Dar virajlar (şehir pisti): virajı tam gazla dönmek mümkün değilse kusursuz sürüş de botlar da virajdan önce
+   fren yapar. Direksiyonun en fazla dönüş hızına göre her noktanın güvenli hızı hesaplanır (yalnızca virajFren
+   isteyen temalarda; diğer pistlerde virajlar zaten tam gazla dönülür). */
+let VB = null;
+function virajProfili(top) {
+  const out = new Float32Array(N), K = 8;
+  for (let i = 0; i < N; i++) {
+    let c = 0; for (let k = -K; k <= K; k++) c += Math.abs(DTH[(i + k + N) % N]); c /= 2 * K + 1;   // yumuşatılmış eğrilik
+    let v = 1.6 / (c + .672 / top); if (v > top) v = .928 / Math.max(c, 1e-6);   // oyuncu direksiyonunun tutabildiği hız
+    out[i] = v * .9;
+  }
+  const ds = L / N, fren = 24;
+  for (let tur = 0; tur < 2; tur++) for (let i = N - 1; i >= 0; i--) { const j = (i + 1) % N; out[i] = Math.min(out[i], Math.sqrt(out[j] * out[j] + 2 * fren * ds)); }
+  return out;
+}
+const vbAt = (vb, s) => vb[Math.floor((((s % L) + L) % L) / L * N) % N];
 function perfectRun(mult) {
   const dt = 1 / 120; let s = START_S - GRID_FRONT - 4 * GRID_GAP, v = 0, boostT = 0, nitro = 0, t = 0;
-  const top = BASE.top * mult, add = BASE.boost * mult;
+  const top = BASE.top * mult, add = BASE.boost * mult, vb = DUNYA?.virajFren ? virajProfili(top) : null;
   const padAbs = []; for (let n = -1; n <= LAPS + 1; n++) for (const p of pads) padAbs.push(p.s + n * L);
   while (s < FINISH_S && t < 2000) {
     nitro = Math.min(1, nitro + dt * BASE.nitroRate);
@@ -1267,6 +1298,7 @@ function perfectRun(mult) {
     let tp = top; if (boostT > 0) { tp += add; boostT -= dt; }
     const k = boostT > 0 ? 2.2 : (v < tp ? .9 : 1.6);
     v += (tp - v) * (1 - Math.exp(-k * dt));
+    if (vb) { const m = vbAt(vb, s); if (v > m) v = Math.max(m, v - 34 * dt); }
     const ps = s; s += v * dt; t += dt;
     for (const pa of padAbs) if (pa > ps && pa <= s) { boostT = Math.max(boostT, BASE.padT); v += add * .3; }
   }
@@ -1279,6 +1311,7 @@ function hizAyarla() {
   SPEED = 1;
   for (let i = 0; i < 6; i++) SPEED *= perfectRun(SPEED) / PERFECT_TIME;
   CAL_TIME = perfectRun(SPEED); BOOST = BASE.boost * SPEED;
+  VB = DUNYA?.virajFren ? virajProfili(BASE.top * SPEED) : null;
 }
 
 /* =========================================================
@@ -1466,7 +1499,9 @@ const racers = [];
 let me = null;
 function disposeCar(car) {
   scene.remove(car.root);
-  car.root.traverse(o => { if (o.userData.merged) o.geometry.dispose(); });
+  // önbellekte olmayan bütün geometriler bırakılır (plaka, kapsül vb. her yarışta yeniden kurulup birikiyordu);
+  // paylaşılan bir geometri yanlışlıkla bırakılırsa three.js onu bir sonraki çizimde yeniden yükler
+  car.root.traverse(o => { if (o.geometry && !o.geometry.userData.ortak) o.geometry.dispose(); });
   car.own.forEach(m => m.dispose());
 }
 function buildRacers(list) {
@@ -1480,7 +1515,7 @@ function buildRacers(list) {
   me.car.root.add(headlight, headlight.target);
   buildBoard();
 }
-if (DBG.has('debug')) window.__race = { racers, getTime: () => time, log: [], get L() { return L; }, get SPEED() { return SPEED; }, get CAL_TIME() { return CAL_TIME; }, tp: (x, z) => { const d = ((sAt(x, z) - me.s) % L + L) % L; racers.forEach(r => r.s += d); camInit = true; }, fin: () => { me.s = me.maxS = FINISH_S - 70; camInit = true; }, pads, get START_S() { return START_S; }, curv: thetaPrime, getInput: () => input, get me() { return me; }, P };
+if (DBG.has('debug')) window.__race = { racers, getTime: () => time, log: [], get L() { return L; }, get SPEED() { return SPEED; }, get CAL_TIME() { return CAL_TIME; }, get VB() { return VB; }, tp: (x, z) => { const d = ((sAt(x, z) - me.s) % L + L) % L; racers.forEach(r => r.s += d); camInit = true; }, fin: () => { me.s = me.maxS = FINISH_S - 70; camInit = true; }, pads, get START_S() { return START_S; }, curv: thetaPrime, getInput: () => input, get me() { return me; }, P };
 
 /* =========================================================
    Duman parçacıkları
@@ -1515,7 +1550,7 @@ function emit(x, y, z, vx, vy, vz, size, life) {
 function updateParticles(dt) {
   const damp = Math.exp(-2 * dt);
   for (let i = 0; i < MAXP; i++) {
-    if (pLife[i] <= 0) { pAlpha[i] = 0; continue; }
+    if (pLife[i] <= 0) { pAlpha[i] = 0; pSize[i] = 0; continue; }   // ölü parçacık 0 boyutta: ekrana boşuna çizilmez
     pLife[i] -= dt; const t = 1 - pLife[i] / pMax[i];
     pVel[i * 3] *= damp; pVel[i * 3 + 2] *= damp; pVel[i * 3 + 1] = pVel[i * 3 + 1] * damp + .9 * dt;
     pPos[i * 3] += pVel[i * 3] * dt; pPos[i * 3 + 1] += pVel[i * 3 + 1] * dt; pPos[i * 3 + 2] += pVel[i * 3 + 2] * dt;
@@ -1561,7 +1596,7 @@ const pool = { boxes: [], oil: [], ramp: [] };
   const oilG = new THREE.ShapeGeometry(oilSh);
   const prof = new THREE.Shape(); prof.moveTo(-2.2, 0); prof.lineTo(2.2, 0); prof.lineTo(2.2, .75); prof.lineTo(1.9, .78); prof.closePath();
   const rampG = new THREE.ExtrudeGeometry(prof, { depth: 3.4, bevelEnabled: false }).translate(0, 0, -1.7).rotateY(-Math.PI / 2);
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < 8; i++) {   // 8'er tane: yol engellerine oyuncuların bıraktığı mazot/koliler de eklenir
     const hb = { type: 'boxes', boxes: [], hitBy: new Set(), active: false };
     for (const [lx, bottom, lz, sz] of [[-.8, 0, 0, 1.4], [.75, 0, .2, 1.3], [0, 1.33, .1, 1.15], [.1, 0, -1.35, 1.2], [-.2, 2.48, .05, .8]]) {
       const m = mk(scene, box(sz, sz, sz), cardM); m.visible = false;
@@ -1619,9 +1654,9 @@ function spawnWave() {
   const lead = racers.filter(r => r.human && !r.finished);
   const ref = lead.length ? Math.max(...lead.map(r => r.s)) : me.s;
   let s = ref + rand(480, 560);   // görüş mesafesinin ötesinde oluşur: gözünün önünde belirmez
-  for (const pd of pads) if (Math.abs(sd(pd.s, s)) < 14) s += 30;
-  for (const [a, b] of DUNYA.yasak || []) if (inRange(s, a - 15, b + 15)) s += sd(b, s) + 30;   // boru/tünel içine engel konmaz
-  if (s > FINISH_S - 30) return;
+  // hız pedi, eşya kutuları, boru/tünel/viraj ile çakışmayana dek ileri kaydır (her kaydırmadan sonra hepsi yeniden denetlenir)
+  let i = 0; while (i++ < 20 && yolDolu(s, { ped: 14, engel: 0, olay: 0, yasak: 15, satir: 90 })) s += 30;
+  if (i > 20 || s > FINISH_S - 30) return;
   for (const li of lanes) {
     const type = ['boxes', 'oil', 'ramp'][Math.floor(Math.random() * 3)];
     if (NET.on) {   // kimlik önce "görüldü" sayılır: veritabanının yerel yankısı engeli ikinci kez kurmasın
@@ -1632,15 +1667,22 @@ function spawnWave() {
 }
 const seenHz = new Set();   // ağdan gelen engeller bir kez oluşturulur (geçilip kalkanlar geri gelmesin)
 function netHazard(id, e) {
-  if (!e || !pool[e.tip] || !Number.isFinite(e.s)) return;   // eksik/bozuk kayıt
-  if (!seenHz.has(id)) { seenHz.add(id); spawnHazard(e.tip, e.s, e.x, id); olayBasladi(); }   // yöneticinin olayı: buradaki bölge olayları da 10–15 sn bekler
+  if (!e || !Number.isFinite(e.s)) return;   // eksik/bozuk kayıt
+  if (e.tip === 'esya') { if (!seenHz.has(id)) { seenHz.add(id); esyaSatiriKur(e.s, id); } return; }   // eşya kutusu sırası
+  if (!pool[e.tip]) return;
+  if (!seenHz.has(id)) {
+    seenHz.add(id);
+    if (e.g) gecikmeliEngel(e.tip, e.s, e.x, id);   // tuzak: önce yere kırmızı işaret, sonra düşer
+    else spawnHazard(e.tip, e.s, e.x, id);
+    if (!e.b) olayBasladi();   // yöneticinin olayı: buradaki bölge olayları da 10–15 sn bekler (oyuncunun bıraktığı eşya sayılmaz)
+  }
   const h = hazards.find(o => o.netId === id);
   if (h && e.v && h.boxes && !h.hit) scatterBoxes(h, null);
 }
 function updateHazards(dt, raceT) {
   const lead = !NET.on || NET.host;
   // engel dalgası da ortak olay sırasına uyar (bölge olaylarıyla arasında 10–15 sn)
-  if (lead && raceT > 0 && racers.some(r => r.human && !r.finished) && olaySirasi() === 'engel') { spawnWave(); olayBasladi(); }
+  if (lead && raceT > 0 && !endShown && racers.some(r => r.human && !r.finished) && olaySirasi() === 'engel') { spawnWave(); olayBasladi(); }
   for (const h of [...hazards]) if (racers.every(r => r.s > h.s + 60) || me.s > h.s + 240) despawnHazard(h);
   for (const h of hazards) if (h.boxes && h.hit) for (const b of h.boxes) {
     if (!b.fly) continue;
@@ -1670,6 +1712,10 @@ function hitHazard(r, h) {
   h.hitBy.add(r.id);
   if (window.__race) window.__race.log.push(`${time.toFixed(1)} ${r.id} -> ${h.type}${h.hit ? '(dağılmış)' : ''}`);
   frameAt(r.s, F1);
+  if (h.type !== 'ramp' && !(h.type === 'boxes' && h.hit) && kalkanKullan(r)) {   // kalkan darbeyi karşılar: koliler yine dağılır ama yavaşlamazsın
+    if (h.type === 'boxes') { scatterBoxes(h, r); if (NET.on && h.netId) NET.ag.engelVur(h.netId); }
+    return;
+  }
   if (h.type === 'boxes') {
     if (h.hit) return;
     slowTo(r, .72); r.bumpT = .35; if (r.me) { shakeT = .4; if (!AUTO_ALL) r.psi += rand(-.18, .18); toast(ENGEL_AD.boxes); SES.kirilma(h.base, 'karton'); }
@@ -1686,6 +1732,189 @@ function hitHazard(r, h) {
 }
 
 /* =========================================================
+   EŞYA KUTULARI (soru işaretli kutular)
+   - 30–45 sn'de bir, yolun her şeridine birer kutu dizilir (her kutu tek şeritte).
+   - Başka bir şeyle çakışmaz: hız pedi, yol engeli, bölge olayının yoldaki nesnesi, viraj/boru/tünel ya da
+     sürmekte olan bir bölge olayı varsa uygun yer/zaman beklenir. Önde kutu dizisi varken bölge olayı başlamaz,
+     yol engeli kutuların yanına konmaz.
+   - Değen araçta sürpriz HEMEN olur (tuşa basılmaz, elde tutulmaz). Sıralamaya göre: öndekine arkasına düşen
+     mazot/koli ya da kalkan, gerideki daha güçlü hız. Kutu yeşil çerçeveli (iyi şey) ve kısa süre sonra yeniden belirir.
+   - Çok oyunculuda kutu dizisini yönetici kurar; bırakılan mazot/koli ve tuzaklar herkese gider.
+   ========================================================= */
+const ESYA_ARALIK = [30, 45];
+const ESYA = {
+  turbo: 'TURBO!', uclu: 'SÜPER TURBO!', kalkan: 'KALKAN!', mazot: 'ARKANA MAZOT DÖKÜLDÜ!', koli: 'ARKANA KOLİ DÜŞTÜ!', tuzak: 'LİDERE TUZAK!',
+};
+const FE = mkF();   // kutu dizilerinin yol çerçevesi
+const esyaSatirlari = [];   // kutu dizileri (havuz): { active, s, netId, kutular: [{ m, x, gizliT }], alanlar }
+let esyaZaman = 0;
+{
+  const kutuTex = canvasTex(256, 256, (g, w, h) => {
+    const gr = g.createLinearGradient(0, 0, w, h); gr.addColorStop(0, '#ffd23f'); gr.addColorStop(.35, '#ff7a3d'); gr.addColorStop(.7, '#e8459a'); gr.addColorStop(1, '#5b7bff');
+    g.fillStyle = gr; g.fillRect(0, 0, w, h);
+    g.strokeStyle = 'rgba(255,255,255,.85)'; g.lineWidth = 14; g.strokeRect(10, 10, w - 20, h - 20);
+    g.font = '900 170px system-ui, Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillStyle = 'rgba(60,20,90,.45)'; g.fillText('?', w / 2 + 8, h / 2 + 14); g.fillStyle = '#ffffff'; g.fillText('?', w / 2, h / 2 + 6);
+  });
+  const kutuM = new THREE.MeshStandardMaterial({ map: kutuTex, emissive: 0xffffff, emissiveMap: kutuTex, emissiveIntensity: .55, roughness: .3, metalness: .1 });
+  const kutuG = new RoundedBoxGeometry(2.3, 2.3, 2.3, 3, .32);
+  for (let i = 0; i < 3; i++) {
+    const satir = { active: false, s: 0, netId: null, kutular: [], alanlar: new Set() };
+    for (const x of LANES) {
+      const m = mk(scene, kutuG, kutuM, 0, 0, 0, { cast: true }); m.visible = false;
+      kenarlik(m, 'yesil', .2);   // iyi şey: yeşil çerçeve
+      satir.kutular.push({ m, x, gizliT: 0, faz: Math.random() * 6 });
+    }
+    esyaSatirlari.push(satir);
+  }
+}
+const KALKAN_M = new THREE.MeshBasicMaterial({ color: 0x7fe0ff, transparent: true, opacity: .22, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false });
+const KALKAN_G = new THREE.SphereGeometry(1, 24, 16); KALKAN_G.userData.ortak = true;   // araçlar yeniden kurulurken bırakılmasın
+// sıradaki kutu dizisi için yer: önde giden oyuncunun görüş mesafesinin ötesinde, hiçbir şeyle çakışmayan bir nokta
+const yasakAralik = () => DUNYA.yasak || (DUNYA.id === 'kraliyet' ? [[TUN.a, TUN.b], [SKEL.a, SKEL.b]] : []);
+// yolun bu noktasında başka bir şey var mı: hız pedi, yol engeli, olay nesnesi, viraj/boru/tünel, kutu dizisi
+function yolDolu(s, { ped = 70, engel = 100, olay = 100, yasak = 40, satir = 250 } = {}) {
+  if (pads.some(p => Math.abs(sd(p.s, s)) < ped)) return true;
+  if (hazards.some(h => Math.abs(sd(h.s, s)) < engel)) return true;
+  for (const o of OLAY_ENGEL) if (Math.abs(sd(o.s, s)) < olay) return true;
+  if (yasakAralik().some(([a, b]) => inRange(s, a - yasak, b + yasak))) return true;
+  return esyaSatirlari.some(k => k.active && Math.abs(sd(k.s, s)) < satir);
+}
+function esyaYeri() {
+  if (RFX.blackout || RFX.wind > .05) return null;   // ışıklar sönmüş ya da rüzgâr esiyorsa bekle (yoldaki olay nesneleri aşağıda yer olarak denetlenir)
+  const lead = racers.filter(r => r.human && !r.finished), ref = lead.length ? Math.max(...lead.map(r => r.s)) : me.s;
+  for (let d = 470; d <= 640; d += 30) {
+    const s = ref + d;
+    if (s > FINISH_S - 60) return null;
+    if (!yolDolu(s)) return s;
+  }
+  return null;
+}
+function esyaSatiriKur(s, netId = null) {
+  const satir = esyaSatirlari.find(k => !k.active); if (!satir) return;
+  satir.active = true; satir.s = s; satir.netId = netId; satir.alanlar.clear();
+  for (const k of satir.kutular) { k.gizliT = 0; k.m.visible = true; k.m.scale.setScalar(1); }
+  if (window.__race) window.__race.log.push(`${time.toFixed(1)} ESYA ${s.toFixed(0)}`);
+}
+// önde kutu dizisi varken bölge olayı başlamasın (olay nesnesi kutuların üstüne düşmesin)
+const esyaOnde = () => esyaSatirlari.some(k => k.active && sd(k.s, me.s) > -30 && sd(k.s, me.s) < 650);
+// sıra yalnızca yarışı süren araçlar arasında sayılır (bitirenler sıralamada en üstte durur, lider sayılmaz)
+const surenler = () => standings().filter(o => !o.finished);
+function esyaSec(r) {
+  const liste = surenler(), sira = Math.max(0, liste.indexOf(r)), k = sira / Math.max(1, liste.length - 1);   // 0: lider … 1: sonuncu
+  const tablo = k < .2 ? { mazot: 3, koli: 3, kalkan: 3, turbo: 1 } : k < .7 ? { turbo: 3, kalkan: 2, mazot: 2, koli: 2, tuzak: 2 } : { uclu: 4, turbo: 2, tuzak: 3, kalkan: 1 };
+  let top = 0; for (const v of Object.values(tablo)) top += v;
+  let x = Math.random() * top; for (const [e, v] of Object.entries(tablo)) { if ((x -= v) < 0) return e === 'tuzak' && sira === 0 ? 'kalkan' : e; }
+  return 'turbo';
+}
+function esyaGuncelle(dt, raceT) {
+  const lead = !NET.on || NET.host;
+  if (lead && raceT > 0 && !endShown && racers.some(r => r.human && !r.finished) && time >= esyaZaman) {
+    const s = esyaYeri();
+    if (s === null) esyaZaman = time + 1;   // uygun yer/zaman yok: 1 sn sonra yeniden bak
+    else {
+      esyaZaman = time + rand(ESYA_ARALIK[0], ESYA_ARALIK[1]);
+      if (NET.on) { const id = NET.ag.engelId(); seenHz.add(id); esyaSatiriKur(s, id); NET.ag.engelEkle(id, 'esya', s, 0); }
+      else esyaSatiriKur(s);
+    }
+  }
+  for (const satir of esyaSatirlari) {
+    if (!satir.active) continue;
+    if (racers.every(r => r.s > satir.s + 60) || me.s > satir.s + 240) { satir.active = false; for (const k of satir.kutular) k.m.visible = false; continue; }
+    frameAt(satir.s, FE);   // kendi çerçevesi: kutu alınınca çağrılan engel kurulumu ortak F1'i değiştirir
+    for (const k of satir.kutular) {
+      // değme: herkes için (uzaktaki arabalar kutuyu görsel olarak patlatır; eşyayı yalnızca kendi cihazında sürülen araç alır)
+      if (k.gizliT <= 0) for (const r of racers) {
+        if (r.finished || Math.abs(sd(satir.s, r.s)) > 1.4 + r.car.hl || Math.abs(r.x - k.x) > 1.3 + r.car.hw) continue;
+        k.gizliT = 1.4;
+        if (!r.remote && !satir.alanlar.has(r.id)) { satir.alanlar.add(r.id); if (r.me) SES.esya(); esyaUygula(r, esyaSec(r)); }   // sürpriz hemen olur
+        for (let i = 0; i < 8; i++) emit(k.m.position.x, k.m.position.y, k.m.position.z, rand(-4, 4), rand(1, 4), rand(-4, 4), rand(.6, 1), rand(.4, .7));
+        break;
+      }
+      k.gizliT -= dt;
+      const sc = k.gizliT > 0 ? Math.max(0, 1 - (1.4 - k.gizliT) / .15) + Math.max(0, (.25 - k.gizliT) / .25) : 1;
+      k.m.scale.setScalar(Math.max(.001, Math.min(1, sc)));
+      k.m.position.copy(FE.p).addScaledVector(FE.r, k.x); k.m.position.y += 1.9 + Math.sin(time * 2.4 + k.faz) * .25;
+      k.m.rotation.set(.35, time * 1.6 + k.faz, .2);
+    }
+  }
+  // kalkanlar ve elindeki eşyanın dönme süresi
+  for (const r of racers) {
+    if (!r.remote) r.kalkanT = Math.max(0, (r.kalkanT || 0) - dt);
+    if ((r.kalkanT || 0) > 0 && !r.kalkanM) { r.kalkanM = new THREE.Mesh(KALKAN_G, KALKAN_M); r.kalkanM.scale.setScalar(3.1); r.kalkanM.position.y = 1; r.car.root.add(r.kalkanM); }
+    if (r.kalkanM) r.kalkanM.visible = (r.kalkanT || 0) > 0;
+  }
+}
+function kalkanKullan(r) {
+  if (!(r.kalkanT > 0) || r.remote) return false;
+  r.kalkanT = 0; if (r.kalkanM) r.kalkanM.visible = false;
+  if (r.me) { toast('KALKAN KORUDU!'); SES.kalkan(); }
+  for (let i = 0; i < 10; i++) emit(r.car.root.position.x + rand(-2, 2), 1.5, r.car.root.position.z + rand(-2, 2), rand(-5, 5), rand(1, 4), rand(-5, 5), rand(.8, 1.2), .5);
+  return true;
+}
+// bir engeli yol üstüne koy (çok oyunculuda herkese gider). b: oyuncunun bıraktığı (olay sırasını etkilemez), g: gecikmeli düşer
+function engelKoy(tip, s, x, ek = {}) {
+  if (NET.on) {
+    const id = NET.ag.engelId(); seenHz.add(id);
+    if (ek.g) gecikmeliEngel(tip, s, x, id); else spawnHazard(tip, s, x, id);
+    NET.ag.engelEkle(id, tip, s, x, { b: 1, ...ek });
+  } else if (ek.g) gecikmeliEngel(tip, s, x); else spawnHazard(tip, s, x);
+}
+// tuzak: yere yanıp sönen kırmızı işaret çıkar, 1,2 sn sonra koliler gökten düşer
+function gecikmeliEngel(tip, s, x, netId = null) {
+  const p = roadPt(s, x), mark = new THREE.Mesh(FXG.ring, FXM.marker.clone()); mark.position.copy(p); mark.position.y += .15; mark.scale.setScalar(.6); scene.add(mark);
+  SES.islik(1.2, () => p);
+  let t = 0;
+  addFx({
+    update(dt) {
+      t += dt; mark.material.opacity = .35 + .45 * Math.abs(Math.sin(t * 12));
+      if (t < 1.2) return true;
+      spawnHazard(tip, s, x, netId); SES.tok(p, { f0: 120, f1: 55, sure: .25, guc: .6, parlak: 1500, gurultuG: .5 });
+      for (let i = 0; i < 12; i++) emit(p.x + rand(-2, 2), .8, p.z + rand(-2, 2), rand(-4, 4), rand(1, 4), rand(-4, 4), rand(1, 1.6), rand(.5, .8));
+      this.dispose(); return false;
+    },
+    dispose() { scene.remove(mark); mark.material.dispose(); },
+  });
+}
+const yakinSerit = x => LANES.reduce((a, b) => Math.abs(b - x) < Math.abs(a - x) ? b : a);
+// kutunun sürprizi değdiğin anda olur
+function esyaUygula(r, e) {
+  // bırakılan mazot/koli ve tuzak da yol kurallarına uyar (viraj/boru/tünel, kutu dizisi, hız pedi, başka engel
+  // üstüne düşmez); uygun yer yoksa sürpriz turboya döner
+  const yakinDolu = s => yolDolu(s, { ped: 12, engel: 14, olay: 18, yasak: 8, satir: 40 });
+  let s = 0, hedef = null;
+  // arkaya düşen: kutu dizisinin biraz gerisine (dizinin kendisiyle iç içe olmasın)
+  if (e === 'mazot' || e === 'koli') { s = r.s - r.car.hl - 18; if (yolDolu(s, { ped: 12, engel: 14, olay: 18, yasak: 8, satir: 12 })) e = 'turbo'; }
+  else if (e === 'tuzak') {
+    hedef = surenler()[0];
+    if (!hedef || hedef === r) e = 'kalkan';
+    else { s = null; for (let d = 110; d <= 170 && s === null; d += 10) if (!yakinDolu(hedef.s + d)) s = hedef.s + d; if (s === null) e = 'turbo'; }
+  }
+  let yazi = ESYA[e];
+  if (e === 'turbo' || e === 'uclu') {   // süper turbo daha uzun sürer
+    r.boostT = Math.max(r.boostT, BASE.padT * (e === 'uclu' ? 3 : 1.3)); if (r.v > 0) r.v += BOOST * .3;
+    if (r.me) SES.nitro();
+  } else if (e === 'kalkan') {
+    r.kalkanT = 12; if (r.me) SES.kalkan();
+  } else if (e === 'mazot' || e === 'koli') {   // arkana düşer: hemen arkandan gelen dikkat etmeli
+    engelKoy(e === 'mazot' ? 'oil' : 'boxes', s, yakinSerit(r.x));
+    const h = hazards[hazards.length - 1]; if (h && Math.abs(sd(h.s, s)) < .1) h.hitBy.add(r.id);   // bırakan kendi bıraktığına takılmaz
+  } else if (e === 'tuzak') {   // liderin önüne kırmızı işaret, ardından koliler düşer
+    engelKoy('boxes', s, yakinSerit(hedef.x), { g: 1 });
+    yazi = `LİDERE TUZAK → ${hedef.name}`;
+    if (hedef.me) toast('ÖNÜNE TUZAK KURULDU!');
+  }
+  if (r.me && !r.finished) toast(yazi, e === 'turbo' || e === 'uclu' || e === 'kalkan');
+  if (window.__race) window.__race.log.push(`${time.toFixed(1)} ${r.id} esya ${e}`);
+}
+function esyaSifirla() {
+  for (const satir of esyaSatirlari) { satir.active = false; for (const k of satir.kutular) k.m.visible = false; }
+  esyaZaman = T_GO + rand(22, 32);
+  for (const r of racers) { r.kalkanT = 0; if (r.kalkanM) r.kalkanM.visible = false; }
+}
+if (window.__race) Object.assign(window.__race, { esyaKur: (d = 150) => esyaSatiriKur(me.s + d), esyaVer: e => esyaUygula(me, e), hazards, esyaSatirlari, get esyaZaman() { return esyaZaman; } });
+
+/* =========================================================
    BÖLGE OLAYLARI — her bölgenin kendine özgü, önceden belli olan tehlikeleri
    Korsan Koyu: gülle + ahtapot kolu · Tünel: ışıklar söner · Kale Yolu: devrilen fıçı istifi
    Dino Kanyonu: T-Rex kükremesi + yuvarlanan kayalar · Değirmen Vadisi: koyun sürüsü + köprüde rüzgâr
@@ -1699,11 +1928,13 @@ const olayHazirMi = () => time >= olayZaman;
 // sıra geldiğinde bu olay ne olsun: 'engel' (yol engeli dalgası) ya da 'bolge' (bulunduğun bölgenin olayı).
 // Engelleri yalnızca yönetici üretir; diğer cihazlarda sıra bölge olaylarınındır (yöneticinin engeli gelince süre yeniden başlar).
 function olaySirasi() {
-  if (!olayHazirMi()) return null;
+  if (!olayHazirMi() || esyaOnde()) return null;   // önde eşya kutuları varken olay başlamaz (kutularla çakışmasın)
   if (olaySecim === null) olaySecim = NET.on && !NET.host ? 'bolge' : Math.random() < .55 ? 'bolge' : 'engel';
   return olaySecim;
 }
 const bolgeSirasi = () => olaySirasi() === 'bolge';
+// olaylar yalnızca yarış sürerken: sen bitirince ya da sonuç ekranı açılınca (çok oyunculuda süre dolunca) durur
+const olayAcik = raceT => raceT > 0 && !me.finished && !endShown;
 // bu bölgede şu an olay yoksa sıra yol engeline geçer
 function bolgeOlayiYok() { if (olaySecim === 'bolge' && (!NET.on || NET.host)) olaySecim = 'engel'; }
 function olayBasladi() { olayZaman = time + rand(OLAY_ARALIK[0], OLAY_ARALIK[1]); olaySecim = null; if (window.__race) window.__race.log.push(`${time.toFixed(1)} OLAY`); }
@@ -1729,6 +1960,7 @@ const FXG = {
 };
 const roadPt = (s, x) => { frameAt(s, F3); return F3.p.clone().addScaledVector(F3.r, x); };
 function knock(r, { slow = .5, jump = 0, kick = 0, shake = .4, msg = '' }) {
+  if (kalkanKullan(r)) return;   // kalkan bu darbeyi karşıladı
   slowTo(r, slow); if (jump && r.y <= .05) r.vy = jump; r.bumpT = .35;
   if (r.me && !AUTO_ALL) r.psi += kick * 1.4; else r.x = clamp(r.x + kick * 6, -HW + 1.3, HW - 1.3);   // oyuncu: burun savrulur, lastik kayar
   if (r.me) { shakeT = Math.max(shakeT, shake); if (msg) toast(msg); SES.tok(null, { f0: 105, f1: 45, sure: .22, guc: .35 + shake * .5, parlak: 1600, gurultuG: .45 }); }
@@ -1793,7 +2025,7 @@ function fireCannon() {
       ct += dt; crater.material.opacity = .6 * Math.max(0, 1 - ct / 5);
       if (ct > 5) { this.dispose(); return false; } return true;
     },
-    dispose() { scene.remove(ball); scene.remove(mark); if (crater) { scene.remove(crater); crater.material.dispose(); } }
+    dispose() { scene.remove(ball); scene.remove(mark); mark.material.dispose(); if (crater) { scene.remove(crater); crater.material.dispose(); } }
   });
 }
 /* --- Korsan Koyu: ahtapot kolu deniz tarafından yalnızca EN SOL şeridi kapatır --- */
@@ -1993,11 +2225,14 @@ function setLights(level) {
 function updateRegionEvents(dt, raceT) {
   DUNYA.olay(dt, raceT);
   SES.ruzgar(RFX.wind, time);
-  RFX.list = RFX.list.filter(o => o.update(dt));
+  // bir efektin içinden başlatılan yeni efektler (patlama parlaması, kırık parçalar) kaybolmasın:
+  // önce liste boşaltılır, yaşayanlar geri eklenir; güncelleme sırasında eklenenler yeni listede kalır
+  const cur = RFX.list; RFX.list = [];
+  for (const o of cur) if (o.update(dt)) RFX.list.push(o);
 }
 function kraliyetOlay(dt, raceT) {
   RG.roarT = Math.max(0, RG.roarT - dt);
-  const active = raceT > 0 && !me.finished;
+  const active = olayAcik(raceT);
   const p = me.car.root.position, lap = Math.floor((me.s - START_S) / L);
   const reg = regionOf(p).name, toTun = sd(TUN.a, me.s);
   const Z = {
@@ -2126,7 +2361,8 @@ function drawFx(k) {
 }
 function toast(text, gold) { const t = $('toast'); t.textContent = text; t.className = gold ? 'gold' : ''; void t.offsetWidth; t.classList.add('show'); }
 function showCount(text, cls) { const c = $('count'); c.textContent = text; c.className = ''; void c.offsetWidth; c.className = cls || 'pop'; }
-function showRegion(name, sub) { const r = $('region'); r.querySelector('b').textContent = name; r.querySelector('small').textContent = sub; r.classList.remove('show'); void r.offsetWidth; r.classList.add('show'); }
+// bölgeye girince yalnızca bölgenin adı görünür (altında olay ipucu yazmaz: "T-Rex", "simitçi" gibi yazılar sürprizi bozuyordu)
+function showRegion(name) { const r = $('region'); r.querySelector('b').textContent = name; const k = r.querySelector('small'); k.textContent = ''; k.style.display = 'none'; r.classList.remove('show'); void r.offsetWidth; r.classList.add('show'); }
 const fmtTime = t => { t = Math.max(0, t); const m = Math.floor(t / 60), s = t - m * 60; return String(m).padStart(2, '0') + ':' + s.toFixed(2).padStart(5, '0'); };
 
 /* bölgeler */
@@ -2154,14 +2390,18 @@ const tusla = { left: false, right: false, gas: false, brake: false };   // klav
 //    yalnızca parmak kalkınca bırakılır (heyecanla kayan başparmak gazı kesmesin).
 const parmak = new Map();   // pointerId → 'left' | 'right' | 'gas' | 'brake'
 const icinde = (r, x, y, pay) => x >= r.left - pay && x <= r.right + pay && y >= r.top - pay && y <= r.bottom + pay;
+// tuşların ekrandaki yerleri: her dokunuşun başında bir kez ölçülür (parmak kayarken her harekette ölçmek telefonu yoruyordu)
+let tusYeri = null;
+function tusOlc() { tusYeri = { a: $('bl').getBoundingClientRect(), b: $('br').getBoundingClientRect(), g: $('gas').getBoundingClientRect(), f: $('rev').getBoundingClientRect() }; }
 function kontrolBul(x, y, onceki) {
-  const a = $('bl').getBoundingClientRect(), b = $('br').getBoundingClientRect(), payL = a.width * .5;
+  if (!tusYeri) tusOlc();
+  const { a, b } = tusYeri, payL = a.width * .5;
   const solAlan = x <= b.right + payL && y >= Math.min(a.top, b.top) - payL && y <= Math.max(a.bottom, b.bottom) + payL && x >= a.left - payL;
   if (solAlan || onceki === 'left' || onceki === 'right') {
     // direksiyona basan parmak alanın dışına taşsa bile direksiyon olarak kalır; yönü yalnızca yatay konum belirler
     if (solAlan || x < innerWidth * .5) return x < (a.right + b.left) / 2 ? 'left' : 'right';
   }
-  const g = $('gas').getBoundingClientRect(), f = $('rev').getBoundingClientRect();
+  const { g, f } = tusYeri;
   // Gaza basan parmak ancak gerçekten frenin ÜSTÜNE gelirse frene geçer (ve tersi). Direksiyon kırarken kayan
   // başparmak gazı bırakmaz, kendiliğinden frene geçmez.
   if (onceki === 'gas') return icinde(f, x, y, 0) && !icinde(g, x, y, g.width * .1) ? 'brake' : 'gas';
@@ -2183,7 +2423,7 @@ addEventListener('pointerdown', e => {
   if (!dokunmaAcik() || e.pointerType === 'mouse' && e.button !== 0) return;
   if (e.target.closest('#nitro')) { e.preventDefault(); nitroReq = true; $('nitro').classList.add('on'); setTimeout(() => $('nitro').classList.remove('on'), 120); return; }
   if (e.target.closest('button:not(.btn), #lobi, #end')) return;   // çık / ses düğmeleri ve menüler kendi işini yapar
-  const k = kontrolBul(e.clientX, e.clientY, null);
+  tusOlc(); const k = kontrolBul(e.clientX, e.clientY, null);
   if (!k) return;
   e.preventDefault(); parmak.set(e.pointerId, k); girdiGuncelle();
 }, { passive: false });
@@ -2219,10 +2459,13 @@ function resetRace() {
     r.v = 0; r.vx = 0; r.acc = 0; r.boostT = 0; r.nitro = 0; r.pads = new Set(); r.decideT = Math.random() * .3; r.wanderT = rand(2.5, 4); r.emitAcc = 0; r.rank = r.grid;
     r.y = 0; r.vy = 0; r.slipT = 0; r.slipDir = 1; r.bumpT = 0; r.aware = r.human ? 'ramp' : BOT_AWARE[r.grid % 4]; r.finished = false; r.finishT = 0; r.net = null;
     r.psi = 0; r.psiV = 0; r.slip = 0; r.skidT = 0; r.steer = 0; r.maxS = r.s; r.wrongT = 0; r.forcing = false; r.scrapeT = 0; r.nitroWait = undefined;
+    r.bariyerSesT = undefined; r.bumpCd = 0;   // önceki yarışın zamanları (saat 0'dan başlar) sesleri/sarsıntıyı susturmasın
   });
+  lastRankToast = -9; skidMesh.count = 0; skidHead = 0;   // önceki yarışın lastik izleri ve sıra bildirimi zamanı
   for (const h of [...hazards]) despawnHazard(h);
   seenHz.clear();
   olayZaman = T_GO + rand(6, 9); olaySecim = null;   // ilk olay yarış başladıktan birkaç saniye sonra
+  esyaSifirla();   // eşya kutuları, eldeki eşyalar ve kalkanlar
   resetRegionEvents();
   time = 0; evts = {}; prevRank = 4; shakeT = 0; lapIdx = 0; lapStart = 0; bestLap = Infinity; lapTimes = []; curRegion = null; endShown = false; endAt = 0; nitroReq = false;
   pLife.fill(0);
@@ -2281,7 +2524,7 @@ function simPlayer(r, dt) {
     else if (!r.forcing) r.v = Math.max(-REV_MAX, r.v - 12 * dt); // durunca geri vites
   } else r.v = r.v > 0 ? Math.max(0, r.v - (4 + r.v * .16) * dt) : Math.min(0, r.v + 8 * dt);
   if (r.slipT > 0) { r.slipT -= dt; r.v -= r.v * .22 * dt; }
-  r.acc = (r.v - pv) / dt;
+  r.acc = dt > 0 ? (r.v - pv) / dt : 0;   // dt = 0 olabilir (ağ saati geri atlarsa): NaN olmasın
   // direksiyon (geri giderken ters döner, gerçek araba gibi)
   const stIn = r.forcing ? 0 : (input.right ? 1 : 0) - (input.left ? 1 : 0);
   r.steer = lerp(r.steer, stIn, 1 - Math.exp(-dt * 9));
@@ -2339,7 +2582,8 @@ function simAI(r, dt, raceT) {
   const pv = r.v;
   const tp = top + (boosting ? BOOST : 0);
   r.v += (tp - r.v) * (1 - Math.exp(-(boosting ? 2.2 : (r.v < tp ? .9 : 1.6)) * dt));
-  r.acc = (r.v - pv) / dt;
+  if (VB) { const m = vbAt(VB, r.s + 3); if (r.v > m) r.v = Math.max(m, r.v - 34 * dt); }   // dar virajdan önce fren
+  r.acc = dt > 0 ? (r.v - pv) / dt : 0;   // dt = 0 olabilir (ağ saati geri atlarsa): NaN olmasın
   if ((r.decideT -= dt) < 0) { r.decideT = .25; decide(r); }
   let want = clamp((r.targetX - r.x) * 3.2, -8, 8) * Math.min(1, r.v / 12);
   let grip = r.y > 0 ? 1.5 : 8;
@@ -2559,7 +2803,7 @@ function events(raceT) {
     }
     // bölge
     const reg = regionOf(me.car.root.position);
-    if (reg !== curRegion) { if (curRegion || raceT > 3) showRegion(reg.name, reg.sub); curRegion = reg; }
+    if (reg !== curRegion) { if (curRegion || raceT > 3) showRegion(reg.name); curRegion = reg; }
   }
 }
 function onPlayerFinish() {
@@ -2661,11 +2905,11 @@ function applyNet(dt) {
     r.s += n.v * dt; r.x += (n.vx || 0) * dt;
     if (Math.abs(ts - r.s) > 25) { r.s = ts; r.x = tx; }
     else { const k = 1 - Math.exp(-dt * 6); r.s += (ts - r.s) * k; r.x += (tx - r.x) * k; }
-    r.v = n.v; r.vx = n.vx || 0; r.y = n.y || 0; r.boostT = n.b ? .3 : 0; r.slipT = n.sl ? .4 : 0;
+    r.v = n.v; r.vx = n.vx || 0; r.y = n.y || 0; r.boostT = n.b ? .3 : 0; r.slipT = n.sl ? .4 : 0; r.kalkanT = n.k ? .3 : 0;   // kalkanı görünsün
     if (n.f != null && !r.finished) { r.finished = true; r.finishT = n.f; r.finEl.textContent = '✓'; }
   }
 }
-const snapOf = r => ({ s: +r.s.toFixed(2), x: +r.x.toFixed(2), y: +r.y.toFixed(2), v: +r.v.toFixed(2), vx: +(r.vx || 0).toFixed(2), b: r.boostT > 0 ? 1 : 0, sl: r.slipT > 0 ? 1 : 0, f: r.finished ? +r.finishT.toFixed(3) : null });
+const snapOf = r => ({ s: +r.s.toFixed(2), x: +r.x.toFixed(2), y: +r.y.toFixed(2), v: +r.v.toFixed(2), vx: +(r.vx || 0).toFixed(2), b: r.boostT > 0 ? 1 : 0, sl: r.slipT > 0 ? 1 : 0, k: r.kalkanT > 0 ? 1 : 0, f: r.finished ? +r.finishT.toFixed(3) : null });
 // kendi aracını (yöneticiysen botları da) saniyede 10 kez yolla
 function netSend() {
   const now = NET.now(); if (now - NET.sendT < 100) return; NET.sendT = now;
@@ -2756,8 +3000,8 @@ const TEMA_TANIM = {
     kare() { sky.position.copy(camera.position); seaMat.uniforms.uTime.value = time; sea.position.x = camera.position.x; sea.position.z = camera.position.z; },
   },
 };
-const TEMA_DOSYA = { mutfak: './tema-mutfak.js' };
-const TEMA_RESIM = { mutfak: 'tema-mutfak.jpg' };
+const TEMA_DOSYA = { mutfak: './tema-mutfak.js', levent: './tema-levent.js' };
+const TEMA_RESIM = { mutfak: 'tema-mutfak.jpg', levent: 'tema-levent.jpg' };
 let DUNYA = null;
 // tema dosyalarının oyuna eriştiği araçlar
 const API = {
@@ -2765,7 +3009,7 @@ const API = {
   clamp, sstep, lerp, rand, sr, srand, wrapA, canvasTex, rrect, textSign, TEX, C, rbox, box, cyl, sph, cone, mat, mk, dummy,
   frameAt, mkF, F1, F2, F3, sAt, sd, inRange, roadPt, ribbon, roadNear, pedKur, PED_YERI, mergeTree,
   emit, boom, shatter, knock, hitRacers, addFx, toast, setLights, FXG, FXM, M, headlight, RFX, wallLim,
-  SES, yanAdim, olayEngel, OLAY_ENGEL, ILK_SERIT, ORTA_SERIT, kenarlik, bolgeSirasi, bolgeOlayiYok, olayBasladi,
+  SES, yanAdim, olayEngel, OLAY_ENGEL, ILK_SERIT, ORTA_SERIT, kenarlik, bolgeSirasi, bolgeOlayiYok, olayBasladi, kalkanKullan, olayAcik,
   sarsinti: v => { shakeT = Math.max(shakeT, v); },
   get L() { return L; }, get START_S() { return START_S; }, get me() { return me; }, racers, get time() { return time; }, get AUTO_ALL() { return AUTO_ALL; },
 };
@@ -2785,15 +3029,18 @@ function temaUygula(t) {
       throw e;
     } finally { D = scene; }
   }
-  if (eski) eski.kok.visible = false;
-  DUNYA = t; t.kok.visible = true; anim = t.anim;
+  // eski dünya sahneden çıkarılır (gizli olsa da her karede matris güncellemesinde dolaşılıyordu); geri dönülünce yeniden eklenir
+  if (eski) { eski.kok.visible = false; scene.remove(eski.kok); }
+  DUNYA = t; t.kok.visible = true; scene.add(t.kok); anim = t.anim;
   for (const h of [...hazards]) despawnHazard(h);
   pads.length = 0; pads.push(...t.pads);
   const I = t.isik;
   hemi.color.set(I.gok); hemi.groundColor.set(I.yer); hemi.intensity = I.gokG;
   sun.color.set(I.gunes); sun.intensity = I.gunesG;
   SUN_DIR.set(...I.gunesYon).normalize(); LIGHT_DIR.set(...I.isikYon).normalize();
-  FOG.set(I.sis); scene.fog.near = I.sisYakin; scene.fog.far = I.sisUzak;
+  golgeAyarla(I.golgeKutu, I.golgeUzak);
+  // sis rengi: THREE.Fog rengi kopyalar, bu yüzden sahnenin sisi de ayrıca boyanır (yoksa her temada Kraliyet'in pembe sisi kalırdı)
+  FOG.set(I.sis); scene.fog.color.copy(FOG); scene.fog.near = I.sisYakin; scene.fog.far = I.sisUzak;
   scene.background = I.arka != null ? new THREE.Color(I.arka) : null;
   grade.uniforms.uTon.value.set(...I.ton); grade.uniforms.uGolge.value.set(...I.golge);
   grade.uniforms.uGunesVar.value = I.gunesParlama === false ? 0 : 1;
@@ -2850,7 +3097,7 @@ function loop() {
   if (!started) {   // lobi: sahne arkada durağan görünür; pil harcamasın diye saniyede ~3 kez çizilir
     if (idleFrame++ % 20 !== 0) return;
     clock.getDelta(); for (const f of anim) f(performance.now() / 1000);
-    updateCamera(0); DUNYA.kare?.(time); updateHUD(-1); updateGrade();
+    updateCamera(0); gunesKonumla(me.car.root.position); DUNYA.kare?.(time); updateHUD(-1); updateGrade();   // lobide de arabaların gölgesi olsun
     SES.motor({ aktif: false, dt: .33 }); SES.surtunme(0, false); SES.yanki(0); SES.ruzgar(0, 0);   // lobide motor susar
     if (DBG.has('low')) renderer.render(scene, camera); else composer.render();
     return;
@@ -2868,6 +3115,7 @@ function loop() {
   if (NET.on) { applyNet(dt); netSend(); }
   events(raceT);
   updateHazards(dt, raceT);
+  esyaGuncelle(dt, raceT);
   updateRegionEvents(dt, raceT);
   placeCars(dt, raceT);
   updateParticles(dt);
@@ -2879,7 +3127,7 @@ function loop() {
   SES.motor({ v: me.v, ust: me.top, gaz: (AUTO_ALL ? me.acc > .5 : input.gas) && !me.finished, nitro: me.boostT > 0, aktif: true, dt });
   const kayma = me.y < .05 && Math.abs(me.v) > 8 ? clamp((Math.abs(me.slip || 0) - .06) * 5, 0, 1) + (me.slipT > 0 ? .8 : 0) + (!AUTO_ALL && input.brake && me.v > 12 ? .5 : 0) : 0;
   SES.surtunme(kayma, me.scrapeT > 0 && Math.abs(me.v) > 3);
-  sun.target.position.copy(me.car.root.position); sun.position.copy(me.car.root.position).addScaledVector(LIGHT_DIR, 200);
+  gunesKonumla(me.car.root.position);
   updateHUD(raceT);
   updateGrade();
   const prof2 = prof ? performance.now() : 0;
@@ -2911,7 +3159,7 @@ if (window.__race) window.__race.fastRun = (secs, ctl) => {
   for (let i = 0; i < secs * 60; i++) {
     time += dt; const raceT = time - T_GO;
     if (ctl) ctl(raceT);
-    simulate(dt, raceT); events(raceT); updateHazards(dt, raceT); updateRegionEvents(dt, raceT); placeCars(dt, raceT); updateParticles(dt);
+    simulate(dt, raceT); events(raceT); updateHazards(dt, raceT); esyaGuncelle(dt, raceT); updateRegionEvents(dt, raceT); placeCars(dt, raceT); updateParticles(dt);
     if (endAt && time >= endAt) break;
   }
   return time;
@@ -2924,7 +3172,7 @@ function resize() {
   renderer.setSize(innerWidth, innerHeight); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
   composer.setPixelRatio(DYN.pr); composer.setSize(innerWidth, innerHeight);
   grade.uniforms.uRes.value.set(innerWidth * DYN.pr, innerHeight * DYN.pr);
-  fx.width = innerWidth; fx.height = innerHeight; setupMinimap();
+  fx.width = innerWidth; fx.height = innerHeight; setupMinimap(); tusYeri = null;
 }
 addEventListener('resize', resize);
 $('replay').addEventListener('click', () => {
@@ -2974,13 +3222,13 @@ const warm = new THREE.Group(); scene.add(warm);
 for (let f = 0; f < 1; f += 1 / 12) {
   frameAt(START_S + f * L, F1);
   camera.position.copy(F1.p).addScaledVector(F1.t, -10).addScaledVector(UP, 4); camera.lookAt(F1.p);
-  sun.target.position.copy(F1.p); sun.position.copy(F1.p).addScaledVector(LIGHT_DIR, 200);
+  gunesKonumla(F1.p);
   DUNYA.kare?.(0); composer.render();
 }
 for (const t of ['boxes', 'oil', 'ramp']) { const h = pool[t][0]; if (h.group) h.group.visible = false; if (h.boxes) h.boxes.forEach(b => b.m.visible = false); }
 racers.forEach(r => r.car.flames.forEach(f => f.visible = false));
 scene.remove(warm);
-updateCamera(0); composer.render();
+updateCamera(0); gunesKonumla(me.car.root.position); composer.render();
 const THEME_SHOT = shot(renderer.domElement, 400, 250);   // tema kartının resmi: pistin açılış görüntüsü
 const THUMBS = carThumbs();
 console.log(`[CrownRally] pist ${L.toFixed(0)} m · hız çarpanı ${SPEED.toFixed(3)} · kusursuz 3 tur ${CAL_TIME.toFixed(1)} sn`);

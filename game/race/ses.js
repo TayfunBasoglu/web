@@ -8,7 +8,9 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
 export function sesKur() {
   let ctx = null, ana = null, motorK = null, surtK = null, yankiK = null, ruzgarK = null, gurultu = null;
-  let acik = localStorage.getItem('crownSes') !== '0';
+  // tarayıcı depolamayı engellediyse (gizli mod, çerezler kapalı) oyun açılmaya devam etsin
+  const depo = { al: k => { try { return localStorage.getItem(k); } catch { return null; } }, yaz: (k, v) => { try { localStorage.setItem(k, v); } catch { /* yok say */ } } };
+  let acik = depo.al('crownSes') !== '0';
   const dinleyici = { x: 0, y: 0, z: 0, sx: 1, sz: 0 };   // kamera konumu ve sağ yönü
 
   function baslat() {
@@ -268,9 +270,12 @@ export function sesKur() {
   function bip(go = false) { if (ctx) { const t = zaman(); nota(go ? 1046 : 523, t, go ? .55 : .18, .14, 'square'); if (go) nota(523, t, .55, .06, 'triangle'); } }
   function tur() { if (ctx) { const t = zaman(); nota(784, t, .18); nota(1175, t + .12, .3); } }
   function bitis() { if (ctx) { const t = zaman(); [523, 659, 784, 1046].forEach((f, i) => nota(f, t + i * .11, i === 3 ? .7 : .2, .13)); } }
+  // eşya kutusu alındı: kısa, parlak yükselen üçlü; kalkan bir darbeyi karşıladı: metalik çınlama
+  function esya() { if (ctx) { const t = zaman(); [784, 988, 1319].forEach((f, i) => nota(f, t + i * .055, .14, .09)); } }
+  function kalkan() { if (ctx) { const t = zaman(); nota(1568, t, .35, .07, 'sine'); nota(2093, t + .02, .3, .05, 'sine'); } }
 
   function acKapa(yeni = !acik) {
-    acik = yeni; localStorage.setItem('crownSes', acik ? '1' : '0');
+    acik = yeni; depo.yaz('crownSes', acik ? '1' : '0');
     if (ctx) { ana.gain.setTargetAtTime(acik ? .85 : 0, zaman(), .05); if (acik) ctx.resume().catch(() => {}); }
     return acik;
   }
@@ -288,6 +293,6 @@ export function sesKur() {
       dinleyici.sx = e[0] / l; dinleyici.sz = e[2] / l;
     },
     motor: motorGuncelle, surtunme, ruzgar, yanki,
-    tok, patlama, islik, gumburtu, kirilma, sicrama, cizirti, kukreme, nitro, ped, elektrik, bip, tur, bitis,
+    tok, patlama, islik, gumburtu, kirilma, sicrama, cizirti, kukreme, nitro, ped, elektrik, bip, tur, bitis, esya, kalkan,
   };
 }

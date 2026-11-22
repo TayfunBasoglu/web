@@ -76,7 +76,9 @@ html,body{width:100%;height:100%;overflow:hidden;background:#1a1230;font-family:
 /* kontroller */
 /* tuşlar başparmağın rahat eriştiği yükseklikte ve büyük (dokunma alanı görünen tuştan da geniştir) */
 .pad{position:fixed;display:flex;gap:2.4vmin;align-items:center;pointer-events:none}
-#padL{left:calc(3.5vmin + env(safe-area-inset-left));bottom:calc(8vmin + env(safe-area-inset-bottom))}
+#padL{left:calc(3vmin + env(safe-area-inset-left));bottom:calc(7vmin + env(safe-area-inset-bottom));gap:1vmin}
+/* yön tuşları: büyük ve birbirine yakın (aradaki boşlukta da hangi tarafa yakınsa o yön sayılır) */
+#bl,#br{--sz:clamp(90px,24vmin,180px)}
 #padR{right:calc(3.5vmin + env(safe-area-inset-right));bottom:calc(6vmin + env(safe-area-inset-bottom));flex-direction:column;align-items:center;gap:2.2vmin}
 .btn{--sz:clamp(76px,19vmin,150px);width:var(--sz);height:var(--sz);border-radius:50%;pointer-events:auto;cursor:pointer;
   border:clamp(2px,.5vmin,4px) solid rgba(255,255,255,.55);background:rgba(35,26,45,.38);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);
@@ -90,7 +92,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:#1a1230;font-family:
 #gas.auto{border-color:rgba(255,210,120,.75);box-shadow:0 .6vmin 0 rgba(0,0,0,.25),0 0 22px rgba(255,170,70,.35)}
 #gas.auto svg,#gas.on svg{animation:gasPulse .45s ease-in-out infinite alternate}
 @keyframes gasPulse{from{transform:translateY(4%);opacity:.75}to{transform:translateY(-4%);opacity:1}}
-#padB{right:calc(6vmin + var(--gasW) + env(safe-area-inset-right));bottom:calc(6vmin + env(safe-area-inset-bottom))}
+#padB{right:calc(8.5vmin + var(--gasW) + env(safe-area-inset-right));bottom:calc(6vmin + env(safe-area-inset-bottom))}
 #rev{--sz:clamp(66px,15.5vmin,124px);display:flex;flex-direction:column;gap:0;font-size:clamp(8px,1.6vmin,12px);letter-spacing:.04em}
 #rev svg{width:40%;height:40%}
 #wrong{position:absolute;left:50%;top:30%;transform:translate(-50%,-50%);font-size:clamp(26px,7vmin,64px);color:#fff;background:linear-gradient(90deg,#c81e3a,#ff3b5c);padding:.15em .8em;border-radius:14px;box-shadow:0 5px 0 #7a0f22;white-space:nowrap;opacity:0;transition:opacity .2s}
@@ -404,6 +406,34 @@ function mk(parent, geo, m, x = 0, y = 0, z = 0, o = {}) {
   if (o.s) me.scale.set(o.s[0], o.s[1], o.s[2]);
   me.castShadow = o.cast !== false; me.receiveShadow = !!o.recv;
   parent.add(me); return me;
+}
+/* Yoldaki şeylerin anlamı rengiyle belli olsun: seni YAVAŞLATANLARIN çevresi KIRMIZI, HIZLANDIRANLARIN YEŞİL çizgi.
+   Ters kabuk tekniği: her parçanın biraz büyütülmüş, yalnızca arka yüzü çizilen bir kopyası arkasına konur.
+   Düz şeylerin (yağ birikintisi gibi) altına biraz büyük, renkli bir kopyası serilir. */
+const KENAR_M = {
+  kirmizi: new THREE.MeshBasicMaterial({ color: 0xff2a2a, side: THREE.BackSide, toneMapped: false, fog: false }),
+  yesil: new THREE.MeshBasicMaterial({ color: 0x27ff6a, side: THREE.BackSide, toneMapped: false, fog: false }),
+};
+const KENAR_DUZ = {
+  kirmizi: new THREE.MeshBasicMaterial({ color: 0xff2a2a, toneMapped: false, fog: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }),
+  yesil: new THREE.MeshBasicMaterial({ color: 0x27ff6a, toneMapped: false, fog: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }),
+};
+function kenarlik(nesne, renk = 'kirmizi', kalin = .2) {
+  const parcalar = [];
+  nesne.traverse(m => { if (m.isMesh && !m.userData.kabuk && !m.isInstancedMesh) parcalar.push(m); });
+  const kabuklar = [];
+  for (const m of parcalar) {
+    const g = m.geometry; if (!g.boundingBox) g.computeBoundingBox();
+    const boy = g.boundingBox.getSize(new THREE.Vector3()), mer = g.boundingBox.getCenter(new THREE.Vector3());
+    const duz = Math.min(boy.x, boy.y, boy.z) < .02, k = new THREE.Vector3();
+    for (const e of ['x', 'y', 'z']) k[e] = boy[e] < .02 ? 1 : 1 + 2 * kalin / (boy[e] * Math.abs(m.scale[e] || 1));
+    const h = new THREE.Mesh(g, (duz ? KENAR_DUZ : KENAR_M)[renk]);
+    h.scale.copy(k); h.position.copy(mer).multiply(new THREE.Vector3(1, 1, 1).sub(k));   // merkezinden büyüt
+    if (duz) { const e = boy.x < .02 ? 'x' : boy.y < .02 ? 'y' : 'z'; h.position[e] -= .012; }   // düz olanın altına
+    h.userData.kabuk = true; h.castShadow = false; h.receiveShadow = false;
+    m.add(h); kabuklar.push(h);
+  }
+  return kabuklar;
 }
 
 /* =========================================================
@@ -1165,6 +1195,8 @@ return { pads: pedKur(PED_YERI, [[SKEL.a, SKEL.b]]), env: ENV, neon: RG.neon };
 // hız pedleri: [turun oranı, şerit]; yasak bir aralığa (tünel, iskelet vb.) denk gelen ped aralığın ötesine kayar
 const PED_YERI = [[.012, -5.8], [.105, 2], [.255, -2], [.41, 5.8], [.545, -5.8], [.67, 2], [.8, -2], [.92, 5.8]];
 const PED_M = new THREE.MeshBasicMaterial({ map: TEX.pad, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false });
+const PED_CERCEVE = (() => { const d = new THREE.Shape(); d.moveTo(-2.15, -3.55); d.lineTo(2.15, -3.55); d.lineTo(2.15, 3.55); d.lineTo(-2.15, 3.55); d.closePath();
+  const i = new THREE.Path(); i.moveTo(-1.8, -3.2); i.lineTo(-1.8, 3.2); i.lineTo(1.8, 3.2); i.lineTo(1.8, -3.2); i.closePath(); d.holes.push(i); return new THREE.ShapeGeometry(d); })();
 function pedKur(liste, yasak = []) {
   const out = [];
   for (const [f, x] of liste) {
@@ -1173,6 +1205,7 @@ function pedKur(liste, yasak = []) {
     frameAt(s, F1);
     const g = new THREE.Group(); g.position.copy(F1.p).addScaledVector(F1.r, x); g.position.y += .08; g.rotation.y = Math.atan2(F1.t.x, F1.t.z) + Math.PI; D.add(g);
     mk(g, new THREE.PlaneGeometry(3.6, 6.4), PED_M, 0, 0, 0, { r: [-Math.PI / 2, 0, 0], cast: false });
+    mk(g, PED_CERCEVE, KENAR_DUZ.yesil, 0, .01, 0, { r: [-Math.PI / 2, 0, 0], cast: false });   // hızlandırır: yeşil çerçeve
     out.push({ s: ((s % L) + L) % L, x });
   }
   anim.push(t => { TEX.pad.offset.y = -t * 1.6; });
@@ -1546,6 +1579,10 @@ const pool = { boxes: [], oil: [], ramp: [] };
     pool.ramp.push(hr);
   }
   Object.assign(ENGEL_M, { boxes: cardM, oil: oilM, ramp: rampM, kenar: mat('#3a3550') });
+  // yavaşlatanlar kırmızı, hızlandıran rampa yeşil çizgiyle çevrilir
+  for (const h of pool.boxes) for (const b of h.boxes) b.kabuk = kenarlik(b.m, 'kirmizi', .2);
+  for (const h of pool.oil) kenarlik(h.group, 'kirmizi', .4);
+  for (const h of pool.ramp) kenarlik(h.group, 'yesil', .22);
 }
 // yol engellerinin görünüşü temaya göre değişir (ör. mutfakta kutu yerine şeker küpü); ölçüleri ve etkileri aynıdır
 let engelSimdi = null;
@@ -1566,7 +1603,7 @@ function spawnHazard(type, s, x, netId = null) {
   if (h.group) { h.group.position.copy(h.base); h.group.rotation.y = h.yaw; h.group.visible = true; }
   if (h.boxes) for (const b of h.boxes) {
     b.m.position.copy(b.local).applyAxisAngle(UP, h.yaw).add(h.base); b.m.position.y += .05;
-    b.m.rotation.set(0, h.yaw + b.ry, 0); b.v.set(0, 0, 0); b.w.set(0, 0, 0); b.fly = false; b.m.visible = true;
+    b.m.rotation.set(0, h.yaw + b.ry, 0); b.v.set(0, 0, 0); b.w.set(0, 0, 0); b.fly = false; b.m.visible = true; b.kabuk?.forEach(k => { k.visible = true; });
   }
   hazards.push(h);
   if (window.__race) window.__race.log.push(`${time.toFixed(1)} SPAWN ${type} şerit ${LANES.indexOf(x)}`);
@@ -1616,6 +1653,7 @@ function updateHazards(dt, raceT) {
 // kutular dağılır (r: çarpan araç; null ise başka bir oyuncu çarpmış, ağdan haber geldi)
 function scatterBoxes(h, r) {
   h.hit = true;
+  for (const b of h.boxes) b.kabuk?.forEach(k => { k.visible = false; });   // dağılan kutular artık yavaşlatmaz
   const v = r ? r.v : BASE.top * SPEED * .8;
   frameAt(h.s, F1);
   for (const b of h.boxes) {
@@ -1719,7 +1757,7 @@ function fireCannon() {
   const target = roadPt(s, x);
   const from = RG.ship.localToWorld(new THREE.Vector3(4.6, 4, 2));
   boom(from, .5, false); SES.patlama(from, .6, 120);
-  const ball = mk(scene, FXG.ball, FXM.ball);
+  const ball = mk(scene, FXG.ball, FXM.ball); kenarlik(ball);
   const mark = new THREE.Mesh(FXG.ring, FXM.marker.clone()); mark.position.copy(target); mark.position.y += .14; mark.scale.setScalar(.6); scene.add(mark);
   const T = 1.7; let t = 0, crater = null, ct = 0; const hit = new Set();
   SES.islik(T, () => target);
@@ -1751,6 +1789,7 @@ function tentacleSlam() {
   const arm = new THREE.Group(); arm.position.y = -13; arm.scale.y = boy / 12.5; root.add(arm);
   mk(arm, FXG.tent, FXM.tent);
   for (let i = 1; i < 10; i++) mk(arm, sph(.5 - i * .03, 8, 6), FXM.suck, -(1.55 - i * .12), i * 1.2, 0, { cast: false, s: [1, 12.5 / boy, 1] });
+  kenarlik(arm.children[0], 'kirmizi', .24);
   let t = 0, carpti = false; const hit = new Set(), eng = olayEngel(s, LANES[0], 0);
   const ease = k => k * k * (3 - 2 * k);
   SES.sicrama(root.position);
@@ -1805,7 +1844,7 @@ function boulder(near = false) {
   const s = me.s + (near ? rand(330, 360) : rand(430, 480)), dir = Math.random() < .5 ? 1 : -1;
   const o = { x: -dir * rand(44, 54), dir, v: 0, hizli: rand(15, 18), yavas: 1.4 };
   let t = 0, rolling = false, ses = null;
-  const m = mk(scene, FXG.boulder, FXM.boulder); const hit = new Set(), eng = olayEngel(s, o.x, KAYA_R);
+  const m = mk(scene, FXG.boulder, FXM.boulder); kenarlik(m, 'kirmizi', .22); const hit = new Set(), eng = olayEngel(s, o.x, KAYA_R);
   let gx = 1e9, gy = 0;   // zemin yüksekliği önbelleği (her karede yeniden hesaplanmasın)
   const place = () => { frameAt(s, F1); m.position.copy(F1.p).addScaledVector(F1.r, o.x); if (Math.abs(o.x - gx) > .6) { gx = o.x; gy = Math.max(groundH(m.position.x, m.position.z), F1.p.y); } m.position.y = gy + KAYA_R * .95; };
   place();
@@ -1842,6 +1881,7 @@ function barrelStack() {
     const g = new THREE.Group(), roll = new THREE.Group(); g.add(roll); scene.add(g);
     mk(roll, FXG.barrel, FXM.barrel, 0, 0, 0, { r: [Math.PI / 2, 0, 0] });
     for (const z of [-.45, .45]) mk(roll, FXG.band, FXM.band, 0, 0, z, { r: [Math.PI / 2, 0, 0], cast: false });
+    kenarlik(roll.children[0], 'kirmizi', .18);
     // üstteki fıçı ilk şeritte kalır, alttakiler bir şerit içeri kayar (aynı yerde üst üste binmesinler)
     const o = { x: side * (HW + 2.5), dir, v: 0, hizli: rand(9, 11), yavas: lvl ? 0 : 1.3 };
     return { g, roll, o, s: s0 + so * 2.4, y: .98 + lvl * 1.5, vy: 0, delay, hit: new Set(), done: false, eng: olayEngel(s0 + so * 2.4, o.x, .9) };
@@ -1880,6 +1920,7 @@ function makeSheep() {
   mk(g, box(.55, .6, .75), FXM.dark, 0, 1.35, 1.25);
   for (const sx of [-.32, .32]) mk(g, box(.35, .12, .2), FXM.dark, sx, 1.62, 1.2, { cast: false });
   for (const [a, b] of [[-.45, -.7], [.45, -.7], [-.45, .7], [.45, .7]]) mk(g, box(.18, .8, .18), FXM.dark, a, .4, b, { cast: false });
+  kenarlik(g.children[0], 'kirmizi', .16); kenarlik(g.children[1], 'kirmizi', .12);   // gövde ve baş
   scene.add(g); return g;
 }
 /* tarlada otlayan küçük sürü; sen yaklaşırken telaşla ilk şeride koşar, oradan ortaya doğru yavaşça yürüyüp durur */
@@ -1988,7 +2029,7 @@ function kraliyetOlay(dt, raceT) {
     for (const r of racers) { if (r.remote) continue; const lim = r.me && !AUTO_ALL ? wallLim(r) : HW - 1.3; r.x = clamp(r.x + gust * dt * (r.me ? 1 : .5), -lim, lim); }
   }
 }
-if (window.__race) Object.assign(window.__race, { rfx: RFX, fire: fireCannon, tent: tentacleSlam, boulder, roar, sheep: sheepHerd, barrels: barrelStack, olayEngel: OLAY_ENGEL });
+if (window.__race) Object.assign(window.__race, { rfx: RFX, fire: fireCannon, tent: tentacleSlam, boulder, roar, sheep: sheepHerd, barrels: barrelStack, olayEngel: OLAY_ENGEL, engel: (tip, ds, x) => spawnHazard(tip, me.s + ds, x) });
 function resetRegionEvents() {
   RFX.list.forEach(o => o.dispose()); RFX.list = []; RFX.zone = {}; RFX.blackout = null; RFX.wind = 0;
   RFX.tunnelLap = RFX.roarLap = RFX.windLap = -9; RG.roarT = 0; OLAY_ENGEL.clear();
@@ -2111,11 +2152,13 @@ function kontrolBul(x, y, onceki) {
     if (solAlan || x < innerWidth * .5) return x < (a.right + b.left) / 2 ? 'left' : 'right';
   }
   const g = $('gas').getBoundingClientRect(), f = $('rev').getBoundingClientRect();
-  const gasta = icinde(g, x, y, g.width * .2), frende = icinde(f, x, y, f.width * .2);
-  if (gasta && frende) return Math.hypot(x - (g.left + g.right) / 2, y - (g.top + g.bottom) / 2) < Math.hypot(x - (f.left + f.right) / 2, y - (f.top + f.bottom) / 2) ? 'gas' : 'brake';
-  if (gasta) return 'gas';
-  if (frende) return 'brake';
-  return onceki === 'gas' || onceki === 'brake' ? onceki : null;   // kayan başparmak son tuşu bırakmaz
+  // Gaza basan parmak ancak gerçekten frenin ÜSTÜNE gelirse frene geçer (ve tersi). Direksiyon kırarken kayan
+  // başparmak gazı bırakmaz, kendiliğinden frene geçmez.
+  if (onceki === 'gas') return icinde(f, x, y, 0) && !icinde(g, x, y, g.width * .1) ? 'brake' : 'gas';
+  if (onceki === 'brake') return icinde(g, x, y, 0) && !icinde(f, x, y, f.width * .1) ? 'gas' : 'brake';
+  if (icinde(g, x, y, g.width * .15)) return 'gas';
+  if (icinde(f, x, y, f.width * .1)) return 'brake';
+  return null;
 }
 function girdiGuncelle() {
   const d = { left: false, right: false, gas: false, brake: false };
@@ -2711,7 +2754,7 @@ const API = {
   clamp, sstep, lerp, rand, sr, srand, wrapA, canvasTex, rrect, textSign, TEX, C, rbox, box, cyl, sph, cone, mat, mk, dummy,
   frameAt, mkF, F1, F2, F3, sAt, sd, inRange, roadPt, ribbon, roadNear, pedKur, PED_YERI, mergeTree,
   emit, boom, shatter, knock, hitRacers, addFx, toast, setLights, FXG, FXM, M, headlight, RFX, wallLim,
-  SES, yanAdim, olayEngel, OLAY_ENGEL, ILK_SERIT, ORTA_SERIT,
+  SES, yanAdim, olayEngel, OLAY_ENGEL, ILK_SERIT, ORTA_SERIT, kenarlik,
   sarsinti: v => { shakeT = Math.max(shakeT, v); },
   get L() { return L; }, get START_S() { return START_S; }, get me() { return me; }, racers, get time() { return time; }, get AUTO_ALL() { return AUTO_ALL; },
 };

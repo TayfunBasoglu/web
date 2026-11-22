@@ -674,7 +674,7 @@ export function tema(A) {
     const me = A.me, s = me.s + rand(85, 120), x = Math.random() < .5 ? A.LANES.reduce((a, b) => Math.abs(b - me.x) < Math.abs(a - me.x) ? b : a) : A.LANES[Math.floor(Math.random() * 4)];
     const hedef = A.roadPt(s, x); hedef.y += 1.8;
     const from = RG.tava.clone();
-    const m = mk(A.scene, FG.sosis, M.sosis);
+    const m = mk(A.scene, FG.sosis, M.sosis); A.kenarlik(m, 'kirmizi', .24);
     const mark = new THREE.Mesh(FXG.ring, FXM.marker.clone()); mark.position.copy(hedef); mark.position.y = hedef.y - 1.6; mark.scale.set(.6, 1, 1.9); frameAt(s, F1); mark.rotation.y = Math.atan2(F1.t.x, F1.t.z); A.scene.add(mark);
     const yaw = Math.atan2(F1.t.x, F1.t.z);
     const T = 1.35; let t = 0, yer = 0; const hit = new Set(), carp = new Set(), eng = A.olayEngel(s, x, 0);
@@ -710,7 +710,8 @@ export function tema(A) {
     const me = A.me, dir = 1;   // buzdolabı yolun solunda
     const parca = [0, 1].map(i => {
       const s = s0 + i * rand(6, 9), o = { x: -(HW + 1.6), dir, v: 0, hizli: rand(11, 14), yavas: i ? 0 : 1.3 };   // ikincisi ilk şeritte kalır
-      return { m: mk(A.scene, FG.buz, M.buz), s, o, y: 30 + i * 9, vy: 0, gec: i * .35, w: rand(-3, 3), bitti: false, yere: false, hit: new Set(), eng: A.olayEngel(s, o.x, BUZ_B / 2) };
+      const bm = mk(A.scene, FG.buz, M.buz); A.kenarlik(bm, 'kirmizi', .2);
+      return { m: bm, s, o, y: 30 + i * 9, vy: 0, gec: i * .35, w: rand(-3, 3), bitti: false, yere: false, hit: new Set(), eng: A.olayEngel(s, o.x, BUZ_B / 2) };
     });
     let t = 0, git = false, dedi = false;
     addFx({
@@ -741,7 +742,7 @@ export function tema(A) {
     const o = { x: side * 62, dir: -side, v: 0, hizli: 12, yavas: 1.3 };
     let y = 112.5 + KOFTE_R, vy = 0, t = 0, yerde = false, dustu = false;
     const vx = (62 - Math.abs(inis)) / Math.sqrt(2 * (y - KOFTE_R) / 75);   // tam bankete düşecek yatay hız
-    const m = mk(A.scene, FG.kofte, M.kofte); const hit = new Set(), eng = A.olayEngel(s, o.x, KOFTE_R);
+    const m = mk(A.scene, FG.kofte, M.kofte); A.kenarlik(m, 'kirmizi', .2); const hit = new Set(), eng = A.olayEngel(s, o.x, KOFTE_R);
     addFx({
       update(dt) {
         t += dt;
@@ -773,7 +774,7 @@ export function tema(A) {
     const me = A.me, dir = Math.random() < .65 ? 1 : -1;
     const o = { x: -dir * rand(26, 34), dir, v: 0, hizli: 13, yavas: 1.3 };
     let t = 0, ucan = null, git = false;
-    const m = mk(A.scene, FG.yun, M.yun); const hit = new Set(), eng = A.olayEngel(s, o.x, YUN_R);
+    const m = mk(A.scene, FG.yun, M.yun); A.kenarlik(m, 'kirmizi', .2); const hit = new Set(), eng = A.olayEngel(s, o.x, YUN_R);
     const ipNok = new Float32Array(3 * 24), ip = new THREE.Line(new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(ipNok, 3)), new THREE.LineBasicMaterial({ color: 0xc23a4a }));
     ip.frustumCulled = false; A.scene.add(ip);
     frameAt(s, F1); const bas = F1.p.clone().addScaledVector(F1.r, o.x);

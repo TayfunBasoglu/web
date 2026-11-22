@@ -253,6 +253,28 @@ body.lobide #hud,body.lobide .pad{visibility:hidden}
 </script>
 <script>
 window.addEventListener('error', e => { const l = document.getElementById('loading'); if (l) { l.classList.remove('hidden'); l.textContent = 'Hata: ' + (e.message || e); } });
+// Tanı ekranı (?tani): telefonda sorun olursa dokunuşlar oyuna ulaşıyor mu, ekran donuyor mu, hata var mı görünsün.
+// Köşedeki saat duruyorsa sayfa donmuştur; sayılar artmıyorsa dokunuş gelmiyordur.
+(function () {
+  const tani = /[?&]tani\b/.test(location.search), say = {}, hatalar = [];
+  let son = '-', kare = 0, fps = 0;
+  const kaydet = ad => e => { say[ad] = (say[ad] || 0) + 1; const t = e.target; son = ad + ' → ' + (t && t.id ? '#' + t.id : t && t.className ? '.' + String(t.className).split(' ')[0] : t && t.nodeName); };
+  window.addEventListener('unhandledrejection', e => { const m = 'Söz hatası: ' + (e.reason && e.reason.message || e.reason); console.warn(m); hatalar.push(m); });
+  window.addEventListener('error', e => hatalar.push('Hata: ' + (e.message || e)));
+  if (!tani) return;
+  for (const ad of ['pointerdown', 'pointerup', 'pointercancel', 'touchstart', 'touchend', 'touchcancel', 'click', 'blur']) window.addEventListener(ad, kaydet(ad), { capture: true, passive: true });
+  const kutu = document.createElement('div');
+  kutu.style.cssText = 'position:fixed;left:4px;top:4px;z-index:99;max-width:70vw;font:11px/1.35 monospace;color:#fff;background:rgba(0,0,0,.78);padding:5px 7px;border-radius:6px;pointer-events:none;white-space:pre-wrap';
+  document.body.appendChild(kutu);
+  (function dongu() { kare++; requestAnimationFrame(dongu); })();
+  let onceki = 0;
+  setInterval(() => { fps = (kare - onceki) * 2; onceki = kare; }, 500);
+  setInterval(() => {
+    kutu.textContent = `TANI ${new Date().toLocaleTimeString()} · ${fps} kare/sn · ${innerWidth}x${innerHeight}\n` +
+      `PointerEvent: ${!!window.PointerEvent} · ${navigator.userAgent.replace(/^.*?\(([^)]*)\).*$/, '$1')}\n` +
+      Object.entries(say).map(([k, v]) => k + ':' + v).join(' ') + `\nson: ${son}` + (hatalar.length ? '\n' + hatalar.slice(-3).join('\n') : '');
+  }, 250);
+})();
 </script>
 <script type="module">
 import * as THREE from 'three';
@@ -2288,6 +2310,17 @@ function resetRegionEvents() {
    HUD
    ========================================================= */
 const $ = id => document.getElementById(id);
+// Düğme: fareyle tıklayınca, dokunmatikte parmak düğmenin üstünde kalkınca çalışır. iPhone Safari'de (oyun site
+// içindeki çerçevede) "click" bazen hiç gelmiyordu; ardından gelen click yok sayılır (iki kez çalışmasın).
+function dokunTikla(el, fn) {
+  let basildi = false, son = -1e9;
+  if (window.PointerEvent) {
+    el.addEventListener('pointerdown', e => { if (e.pointerType !== 'mouse') basildi = true; });
+    el.addEventListener('pointerup', e => { if (e.pointerType !== 'mouse' && basildi) { basildi = false; son = performance.now(); fn(e); } });
+    el.addEventListener('pointercancel', () => { basildi = false; });
+  } else el.addEventListener('touchend', e => { son = performance.now(); fn(e); });
+  el.addEventListener('click', e => { if (performance.now() - son < 800) return; fn(e); });
+}
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const crownSVG = '<svg class="cr" viewBox="0 0 24 18"><path d="M1.5 16.5h21l1-11.5-6.3 4.6L12 1 6.8 9.6.5 5z" fill="currentColor"/></svg>';
 // sıralama satırları ve araç üstü etiketler (kadro her değiştiğinde yeniden kurulur)
@@ -3006,7 +3039,7 @@ async function beginRace({ kadro, baslangic, ben, host, tema }) {
 function haritaHatasi() {
   const l = $('loading'); l.classList.remove('hidden');
   l.innerHTML = `<div>Harita yüklenemedi.<br><small>İnternet bağlantını kontrol edip yeniden dene.</small><br><br><button class="lbtn2" id="haritaTekrar">Yeniden dene</button></div>`;
-  $('haritaTekrar').onclick = () => location.reload();
+  dokunTikla($('haritaTekrar'), () => location.reload());
 }
 function backToLobby() {
   yarisBilet++; NET.on = false; girdiSifirla(); NET.final = null; started = false; document.body.classList.add('lobide');
@@ -3204,7 +3237,7 @@ function resize() {
   fx.width = innerWidth; fx.height = innerHeight; setupMinimap(); tusYeri = null;
 }
 addEventListener('resize', resize);
-$('replay').addEventListener('click', () => {
+dokunTikla($('replay'), () => {
   if (NET.ag) { $('end').classList.add('hidden'); NET.ag.lobiGoster(); }   // sonuç kesinleşince herkes zaten lobiye döner
   else { resetRace(); started = true; clock.getDelta(); }
 });
@@ -3217,10 +3250,10 @@ addEventListener('message', e => {
 });
 // ses aç/kapat (tercih hatırlanır)
 $('sesBtn').classList.toggle('kapali', !SES.acikMi());
-$('sesBtn').addEventListener('click', e => { e.stopPropagation(); SES.baslat(); $('sesBtn').classList.toggle('kapali', !SES.acKapa()); $('sesBtn').blur(); });
+dokunTikla($('sesBtn'), e => { e.stopPropagation(); SES.baslat(); $('sesBtn').classList.toggle('kapali', !SES.acKapa()); $('sesBtn').blur(); });
 // yarıştan çıkış: yanlışlıkla basılmasın diye iki dokunuş
 let quitT = 0;
-$('quit').addEventListener('click', () => {
+dokunTikla($('quit'), () => {
   if (!$('quit').classList.contains('sure')) {
     $('quit').classList.add('sure'); $('quit').textContent = 'Emin misin? Tekrar bas';
     clearTimeout(quitT); quitT = setTimeout(() => { $('quit').classList.remove('sure'); $('quit').textContent = '✕ ÇIK'; }, 3000);
@@ -3307,7 +3340,7 @@ else {
     .catch(e => {
       console.warn(e);
       $('lobi').innerHTML = `<div class="lb"><h2 class="it">Lobiye girilemedi</h2><div class="alt">${esc(e.message || String(e))}</div><button class="lbtn2" id="lobiCik">Menüye dön</button></div>`;
-      $('lobiCik').onclick = () => { if (window.parent !== window) window.parent.postMessage({ tip: 'yaris-cik' }, location.origin); else location.href = '../index.html'; };
+      dokunTikla($('lobiCik'), () => { if (window.parent !== window) window.parent.postMessage({ tip: 'yaris-cik' }, location.origin); else location.href = '../index.html'; });
     });
 }
 </script>

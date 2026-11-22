@@ -233,14 +233,30 @@ export async function agBaslat({ kok, oyun, yerel }) {
   setInterval(() => { if (!lobi && listeGeldi) { copTopla(); ciz(); } }, 3000);   // eskiyen lobiler listeden düşsün
 
   // ---------- tıklamalar ----------
-  kok.addEventListener('click', (e) => {
-    const b = e.target.closest('[data-act]');
+  function eylem(b) {
     if (!b || b.disabled) return;
     const act = b.dataset.act;
     if (act === 'menu') return menuyeDon();
     if (act === 'kur') return lobiKur();
     if (act === 'katil') return lobiyeGir(b.dataset.v);
     lobi?.tikla(act, b);
+  }
+  // Dokunmatikte düğme parmak KALKINCA çalışır (aynı düğmede basılıp bırakıldıysa). iPhone Safari'de oyun site
+  // içindeki çerçevede açıldığında "click" bazen hiç gelmiyordu ("HAZIRIM'a basıyorum, bir şey olmuyor").
+  // Ardından gelen click yok sayılır: "Hazırım" gibi aç/kapa düğmeleri iki kez çalışıp geri kapanmasın.
+  let basilan = null, sonDokunus = -1e9;
+  const dokunmatikBirak = (b) => { if (b && b === basilan) { sonDokunus = performance.now(); eylem(b); } basilan = null; };
+  if (window.PointerEvent) {
+    kok.addEventListener('pointerdown', (e) => { if (e.pointerType !== 'mouse') basilan = e.target.closest('[data-act]'); });
+    kok.addEventListener('pointerup', (e) => { if (e.pointerType !== 'mouse') dokunmatikBirak(e.target.closest('[data-act]')); });
+    kok.addEventListener('pointercancel', () => { basilan = null; });
+  } else {   // çok eski iPhone'lar
+    kok.addEventListener('touchstart', (e) => { basilan = e.target.closest('[data-act]'); }, { passive: true });
+    kok.addEventListener('touchend', (e) => { const t = e.changedTouches[0]; dokunmatikBirak(t && document.elementFromPoint(t.clientX, t.clientY)?.closest('[data-act]')); });
+  }
+  kok.addEventListener('click', (e) => {
+    if (performance.now() - sonDokunus < 800) return;   // dokunmatikte zaten çalıştı
+    eylem(e.target.closest('[data-act]'));
   });
 
   /* =========================================================

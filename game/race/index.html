@@ -122,6 +122,13 @@ html,body{width:100%;height:100%;overflow:hidden;background:#1a1230;font-family:
 /* yarış sırasında çıkış */
 #quit{position:fixed;left:50%;bottom:calc(1.6vmin + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:5;font:inherit;font-size:clamp(10px,1.8vmin,13px);color:#fff;border:0;border-radius:99px;padding:.45em 1em;background:var(--panel);cursor:pointer;display:none}
 #quit.on{display:block}
+/* ses aç/kapat: solda, sıralama listesinin altında (alttaki yazıların üstüne binmez) */
+#sesBtn{position:fixed;left:calc(1.6vmin + env(safe-area-inset-left));top:calc(var(--rowh) * 5 + 5vmin + env(safe-area-inset-top));z-index:9;font-size:clamp(10px,1.8vmin,13px);width:2.6em;height:2.6em;padding:.45em;border:0;border-radius:99px;background:var(--panel);color:#fff;cursor:pointer;display:grid;place-items:center}
+#sesBtn svg{width:100%;height:100%}
+#sesBtn .carpi{display:none}
+#sesBtn.kapali .carpi{display:inline}
+#sesBtn.kapali .dalga{display:none}
+#sesBtn.kapali{opacity:.7}
 /* telefon dik tutulursa: yan çevir uyarısı */
 #cevir{position:fixed;inset:0;z-index:20;display:none;place-items:center;text-align:center;padding:8vmin;background:#1a1230;color:#e6dcff;font-size:clamp(16px,5vmin,26px);line-height:1.5}
 #cevir b{display:block;font-size:2.6em;margin-bottom:.2em}
@@ -224,6 +231,7 @@ body.lobide #hud,body.lobide .pad{visibility:hidden}
   </div>
 </div>
 <button id="quit" class="it" aria-label="Yarıştan çık">✕ ÇIK</button>
+<button id="sesBtn" aria-label="Sesi aç / kapat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" fill="currentColor"/><path class="dalga" d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/><path class="carpi" d="M16 9.5l5 5M21 9.5l-5 5"/></svg></button>
 <div id="lobi" class="hidden"></div>
 <div id="cevir"><div><b>↻</b>Yarış için telefonunu yan çevir</div></div>
 <div id="loading">Harita hazırlanıyor…</div>
@@ -246,6 +254,8 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { sesKur } from './ses.js';
+const SES = sesKur();   // motor, lastik, çarpma ve tehlike sesleri (ilk dokunuşta açılır)
 
 /* =========================================================
    Ayarlar & yardımcılar
@@ -1619,7 +1629,7 @@ function hitHazard(r, h) {
   frameAt(r.s, F1);
   if (h.type === 'boxes') {
     if (h.hit) return;
-    slowTo(r, .72); r.bumpT = .35; if (r.me) { shakeT = .4; if (!AUTO_ALL) r.psi += rand(-.18, .18); toast(ENGEL_AD.boxes); }
+    slowTo(r, .72); r.bumpT = .35; if (r.me) { shakeT = .4; if (!AUTO_ALL) r.psi += rand(-.18, .18); toast(ENGEL_AD.boxes); SES.kirilma(h.base, 'karton'); }
     scatterBoxes(h, r);
     if (NET.on && h.netId) NET.ag.engelVur(h.netId);
   } else if (h.type === 'oil') {
@@ -1628,7 +1638,7 @@ function hitHazard(r, h) {
   } else {
     if (r.y > .1) return;
     r.vy = 6.4; r.boostT = Math.max(r.boostT, BASE.rampT);
-    if (r.me) toast(ENGEL_AD.ramp);
+    if (r.me) { toast(ENGEL_AD.ramp); SES.ped(); }
   }
 }
 
@@ -1653,7 +1663,7 @@ const FXM = {
 };
 const FXG = {
   ball: new THREE.SphereGeometry(1.1, 14, 10), ring: new THREE.RingGeometry(2.6, 3.4, 32).rotateX(-Math.PI / 2), disc: new THREE.CircleGeometry(3, 24).rotateX(-Math.PI / 2),
-  flash: new THREE.SphereGeometry(1, 16, 12), boulder: new THREE.DodecahedronGeometry(2.2, 0),
+  flash: new THREE.SphereGeometry(1, 16, 12), boulder: new THREE.DodecahedronGeometry(1.75, 0),   // tek şeride sığar
   barrel: new THREE.CylinderGeometry(.85, .85, 1.7, 16), band: new THREE.CylinderGeometry(.88, .88, .3, 16),
   tent: new THREE.CylinderGeometry(.45, 1.7, 12.5, 12, 6).translate(0, 6.25, 0),
   woolBody: new THREE.IcosahedronGeometry(1, 1),
@@ -1662,7 +1672,7 @@ const roadPt = (s, x) => { frameAt(s, F3); return F3.p.clone().addScaledVector(F
 function knock(r, { slow = .5, jump = 0, kick = 0, shake = .4, msg = '' }) {
   slowTo(r, slow); if (jump && r.y <= .05) r.vy = jump; r.bumpT = .35;
   if (r.me && !AUTO_ALL) r.psi += kick * 1.4; else r.x = clamp(r.x + kick * 6, -HW + 1.3, HW - 1.3);   // oyuncu: burun savrulur, lastik kayar
-  if (r.me) { shakeT = Math.max(shakeT, shake); if (msg) toast(msg); }
+  if (r.me) { shakeT = Math.max(shakeT, shake); if (msg) toast(msg); SES.tok(null, { f0: 105, f1: 45, sure: .22, guc: .35 + shake * .5, parlak: 1600, gurultuG: .45 }); }
   if (window.__race) window.__race.log.push(`${time.toFixed(1)} ${r.id} <- ${msg || 'olay'}`);
 }
 function hitRacers(s, x, hs, hx, cb, hitSet, maxY = 1.2) {
@@ -1679,26 +1689,47 @@ function boom(p, size = 1, shake = true) {
   for (let i = 0; i < 18 * size; i++) emit(p.x + rand(-1.5, 1.5), p.y + rand(0, 1.5), p.z + rand(-1.5, 1.5), rand(-5, 5), rand(2, 7), rand(-5, 5), rand(1.2, 2.2) * size, rand(.7, 1.2));
   if (shake) { const d = p.distanceTo(me.car.root.position); if (d < 45) shakeT = Math.max(shakeT, .45 * (1 - d / 45)); }
 }
-/* --- Korsan Koyu: gülle --- */
+/* --- Yandan gelen şeylerin hareketi (kaya, fıçı, koyun; mutfakta buz, köfte, yün) ---
+   Yolun dışından İLK ŞERİDE kadar hızlı gelir, oradan bir şerit içeri (ortaya) YAVAŞÇA kayar ve orada durur.
+   Hiçbir şey aynı anda iki şeridi kapatmaz; geriden gelen sürücü onu yolun ortasında görüp kaçabilir.
+   o = { x, dir (+1: +x yönüne gider), v, hizli, yavas } */
+const ILK_SERIT = 5.8, ORTA_SERIT = 2;
+function yanAdim(o, dt) {
+  const ilk = -o.dir * ILK_SERIT, orta = -o.dir * ORTA_SERIT;
+  if (o.dir * (ilk - o.x) > 0) {
+    o.v = Math.min(o.hizli, o.v + o.hizli * 1.6 * dt);
+    o.x += o.dir * Math.min(o.v * dt, o.dir * (ilk - o.x));
+    if (o.dir * (ilk - o.x) <= 0) o.v = o.yavas;   // yolun kenarına (bordüre) çarpıp birden yavaşlar
+  } else if (o.yavas > 0 && o.dir * (orta - o.x) > 0) { o.v = o.yavas; o.x += o.dir * Math.min(o.v * dt, o.dir * (orta - o.x)); }
+  else o.v = 0;
+  return o.v;
+}
+// bölge olaylarının yoldaki nesneleri: botlar bunları da görüp şerit değiştirir ({ s, x, w: yarı genişlik })
+const OLAY_ENGEL = new Set();
+function olayEngel(s, x, w) { const e = { s, x, w }; OLAY_ENGEL.add(e); return e; }
+
+/* --- Korsan Koyu: gülle (tek şeride düşer) --- */
 function fireCannon() {
-  const s = me.s + rand(80, 115), x = Math.random() < .5 ? clamp(me.x, -6, 6) : LANES[Math.floor(Math.random() * 4)];
+  const s = me.s + rand(80, 115), x = Math.random() < .5 ? LANES.reduce((a, b) => Math.abs(b - me.x) < Math.abs(a - me.x) ? b : a) : LANES[Math.floor(Math.random() * 4)];
   const target = roadPt(s, x);
   const from = RG.ship.localToWorld(new THREE.Vector3(4.6, 4, 2));
-  boom(from, .5, false);
+  boom(from, .5, false); SES.patlama(from, .6, 120);
   const ball = mk(scene, FXG.ball, FXM.ball);
-  const mark = new THREE.Mesh(FXG.ring, FXM.marker.clone()); mark.position.copy(target); mark.position.y += .14; scene.add(mark);
+  const mark = new THREE.Mesh(FXG.ring, FXM.marker.clone()); mark.position.copy(target); mark.position.y += .14; mark.scale.setScalar(.6); scene.add(mark);
   const T = 1.7; let t = 0, crater = null, ct = 0; const hit = new Set();
+  SES.islik(T, () => target);
   addFx({
     update(dt) {
       t += dt;
       if (t < T) {
         const k = t / T; ball.position.lerpVectors(from, target, k); ball.position.y += Math.sin(Math.PI * k) * 45;
-        mark.material.opacity = .35 + .45 * Math.abs(Math.sin(t * 12)); mark.scale.setScalar(1.25 - .35 * k); return true;
+        mark.material.opacity = .35 + .45 * Math.abs(Math.sin(t * 12)); mark.scale.setScalar(.75 - .2 * k); return true;
       }
       if (!crater) {
-        boom(target, 1.2); scene.remove(ball); scene.remove(mark); mark.material.dispose();
-        hitRacers(s, x, 3.2, 3.2, r => knock(r, { slow: .62, jump: 4.5, kick: rand(-.3, .3), shake: .55, msg: 'GÜLLE!' }), hit);
-        crater = new THREE.Mesh(FXG.disc, FXM.crater.clone()); crater.position.copy(target); crater.position.y += .1; crater.scale.setScalar(.9); scene.add(crater);
+        boom(target, .9); SES.patlama(target, 1); scene.remove(ball); scene.remove(mark); mark.material.dispose();
+        // yalnızca düştüğü şeridi vurur (yandaki şeritteki araç etkilenmez)
+        hitRacers(s, x, 2.6, 1.6, r => knock(r, { slow: .62, jump: 4.5, kick: rand(-.3, .3), shake: .55, msg: 'GÜLLE!' }), hit);
+        crater = new THREE.Mesh(FXG.disc, FXM.crater.clone()); crater.position.copy(target); crater.position.y += .1; crater.scale.setScalar(.55); scene.add(crater);
       }
       ct += dt; crater.material.opacity = .6 * Math.max(0, 1 - ct / 5);
       if (ct > 5) { this.dispose(); return false; } return true;
@@ -1706,33 +1737,40 @@ function fireCannon() {
     dispose() { scene.remove(ball); scene.remove(mark); if (crater) { scene.remove(crater); crater.material.dispose(); } }
   });
 }
-/* --- Korsan Koyu: ahtapot kolu deniz tarafından iki şeridi kapatır --- */
+/* --- Korsan Koyu: ahtapot kolu deniz tarafından yalnızca EN SOL şeridi kapatır --- */
+const KOL_UCU = (LANES[0] + LANES[1]) / 2;   // sol şerit ile yanındaki şeridin sınırı (x = -3.9)
 function tentacleSlam() {
   const s = me.s + rand(100, 130); frameAt(s, F1);
-  const root = new THREE.Group(); root.position.copy(F1.p).addScaledVector(F1.r, -(HW + 4.6)); root.rotation.y = Math.atan2(F1.t.x, F1.t.z); scene.add(root);
-  const arm = new THREE.Group(); arm.position.y = -13; root.add(arm);
+  const kok = -(HW + 4.6), boy = KOL_UCU - kok;   // kolun uzunluğu: kökten sol şeridin iç sınırına kadar
+  const root = new THREE.Group(); root.position.copy(F1.p).addScaledVector(F1.r, kok); root.rotation.y = Math.atan2(F1.t.x, F1.t.z); scene.add(root);
+  const arm = new THREE.Group(); arm.position.y = -13; arm.scale.y = boy / 12.5; root.add(arm);
   mk(arm, FXG.tent, FXM.tent);
-  for (let i = 1; i < 10; i++) mk(arm, sph(.5 - i * .03, 8, 6), FXM.suck, -(1.55 - i * .12), i * 1.2, 0, { cast: false });
-  let t = 0; const hit = new Set(); const tipX = -(HW + 4.6) + 12.5;
+  for (let i = 1; i < 10; i++) mk(arm, sph(.5 - i * .03, 8, 6), FXM.suck, -(1.55 - i * .12), i * 1.2, 0, { cast: false, s: [1, 12.5 / boy, 1] });
+  let t = 0, carpti = false; const hit = new Set(), eng = olayEngel(s, LANES[0], 0);
   const ease = k => k * k * (3 - 2 * k);
+  SES.sicrama(root.position);
   addFx({
     update(dt) {
       t += dt;
       if (t < .9) { arm.position.y = lerp(-13, 0, ease(t / .9)); arm.rotation.z = -.25 + Math.sin(t * 6) * .08; if (Math.random() < .5) emit(root.position.x, root.position.y + .5, root.position.z, rand(-2, 2), rand(3, 6), rand(-2, 2), rand(1, 1.6), .8); }
       else if (t < 1.6) arm.rotation.z = -.25 + Math.sin(t * 9) * .15;
-      else if (t < 1.85) { arm.rotation.z = lerp(-.25, Math.PI / 2 - .04, ease((t - 1.6) / .25)); if (t + dt >= 1.85) { const d = root.position.distanceTo(me.car.root.position); if (d < 60) shakeT = Math.max(shakeT, .5 * (1 - d / 60)); } }
+      else if (t < 1.85) {
+        arm.rotation.z = lerp(-.25, Math.PI / 2 - .04, ease((t - 1.6) / .25));
+        if (t + dt >= 1.85 && !carpti) { carpti = true; const p = roadPt(s, LANES[0]); SES.tok(p, { f0: 75, f1: 34, sure: .4, guc: 1, parlak: 700, gurultuG: .35, menzil: 60 }); const d = root.position.distanceTo(me.car.root.position); if (d < 60) shakeT = Math.max(shakeT, .5 * (1 - d / 60)); }
+      }
       else if (t < 3.3) arm.rotation.z = Math.PI / 2 - .04 + Math.sin(t * 9) * .03;
       else if (t < 4.1) arm.rotation.z = lerp(Math.PI / 2 - .04, 0, ease((t - 3.3) / .8));
       else if (t < 4.8) arm.position.y = lerp(0, -13, (t - 4.1) / .7);
       else { this.dispose(); return false; }
+      eng.w = arm.rotation.z > 1.2 ? 1.9 : 0;   // kol yoldayken botlar sol şeritten kaçar
       if (arm.rotation.z > 1.2) for (const r of racers) {
         if (r.remote || hit.has(r) || r.y > 1.5) continue;
         // çarpınca kol geri çekilir: yolu kapatmaya devam etmez
-        if (Math.abs(r.s - s) < 1.5 + r.car.hl && r.x - r.car.hw < tipX) { hit.add(r); knock(r, { slow: .7, kick: .3, shake: .45, msg: 'AHTAPOT!' }); if (r.me) t = Math.max(t, 3.3); }
+        if (Math.abs(r.s - s) < 1.5 + r.car.hl && r.x - r.car.hw < KOL_UCU) { hit.add(r); knock(r, { slow: .7, kick: .3, shake: .45, msg: 'AHTAPOT!' }); if (r.me) t = Math.max(t, 3.3); }
       }
       return true;
     },
-    dispose() { scene.remove(root); }
+    dispose() { scene.remove(root); OLAY_ENGEL.delete(eng); }
   });
 }
 /* --- kırılan şeylerin parçaları --- */
@@ -1754,73 +1792,80 @@ function shatter(p, vel, geo, m, n, size) {
   });
 }
 /* --- Dino Kanyonu: yol kenarındaki yamaçlardan yuvarlanan kayalar ---
-   Kaya tepede bekler (uzaktan görünür), sen yaklaşınca yamaçtan aşağı yuvarlanıp yolu geçer. Çarparsan kaya parçalanır. */
+   Kaya tepede bekler (uzaktan görünür); sen yaklaşırken yamaçtan ilk şeride hızla yuvarlanır, oradan
+   ortaya doğru yavaşça kayıp durur. Çarparsan kaya parçalanır. Her seferinde tek kaya gelir. */
 const CHUNK_G = new THREE.DodecahedronGeometry(1, 0);
-// her seferinde tek kaya gelir
+const KAYA_R = 1.75;
 function boulder(near = false) {
-  const s = me.s + (near ? rand(180, 210) : rand(300, 360)), dir = Math.random() < .5 ? 1 : -1, maxV = rand(13, 17);
-  let x = -dir * rand(48, 60), t = 0, v = 0, rolling = near;
-  const m = mk(scene, FXG.boulder, FXM.boulder); const hit = new Set();
+  const s = me.s + (near ? rand(330, 360) : rand(430, 480)), dir = Math.random() < .5 ? 1 : -1;
+  const o = { x: -dir * rand(44, 54), dir, v: 0, hizli: rand(15, 18), yavas: 1.4 };
+  let t = 0, rolling = false, ses = null;
+  const m = mk(scene, FXG.boulder, FXM.boulder); const hit = new Set(), eng = olayEngel(s, o.x, KAYA_R);
   let gx = 1e9, gy = 0;   // zemin yüksekliği önbelleği (her karede yeniden hesaplanmasın)
-  const place = () => { frameAt(s, F1); m.position.copy(F1.p).addScaledVector(F1.r, x); if (Math.abs(x - gx) > .6) { gx = x; gy = Math.max(groundH(m.position.x, m.position.z), F1.p.y); } m.position.y = gy + 2.1; };
+  const place = () => { frameAt(s, F1); m.position.copy(F1.p).addScaledVector(F1.r, o.x); if (Math.abs(o.x - gx) > .6) { gx = o.x; gy = Math.max(groundH(m.position.x, m.position.z), F1.p.y); } m.position.y = gy + KAYA_R * .95; };
   place();
   addFx({
     update(dt) {
       t += dt;
-      if (!rolling) { if (s - me.s < 235) rolling = true; else { m.rotation.z = Math.sin(t * 18) * .03; if (t > 45 || me.s > s + 40) { this.dispose(); return false; } return true; } }
-      v = Math.min(maxV, v + 9 * dt); x += dir * v * dt; place();
-      m.rotateOnWorldAxis(F1.t, dir * v * dt / 2.2);
-      if (Math.random() < .4) emit(m.position.x, m.position.y - 1.8, m.position.z, rand(-1, 1), rand(.5, 1.5), rand(-1, 1), rand(.9, 1.5), .7);
+      if (!rolling) { if (s - me.s < 400) { rolling = true; ses = SES.gumburtu('kaya'); } else { m.rotation.z = Math.sin(t * 18) * .03; if (t > 45 || me.s > s + 40) { this.dispose(); return false; } return true; } }
+      const v = yanAdim(o, dt); place(); eng.x = o.x;
+      m.rotateOnWorldAxis(F1.t, o.dir * v * dt / KAYA_R);
+      ses?.guncelle(m.position, v);
+      if (v > 4 && Math.random() < .4) emit(m.position.x, m.position.y - 1.4, m.position.z, rand(-1, 1), rand(.5, 1.5), rand(-1, 1), rand(.9, 1.5), .7);
       let broke = false;
-      hitRacers(s, x, 2, 2.1, r => { if (broke) return; broke = true; knock(r, { slow: .66, jump: 3, kick: dir * .3, shake: .5, msg: 'KAYA!' }); shatter(m.position, F1.t.clone().multiplyScalar(r.v * .5), CHUNK_G, FXM.boulder, 7, rand(.5, .8)); }, hit);
-      if (broke || dir * x > HW + 22) { this.dispose(); return false; } return true;
+      hitRacers(s, o.x, 1.8, 1.6, r => {
+        if (broke) return; broke = true; knock(r, { slow: .66, jump: 3, kick: o.dir * .3, shake: .5, msg: 'KAYA!' });
+        SES.kirilma(m.position, 'tas'); shatter(m.position, F1.t.clone().multiplyScalar(r.v * .5), CHUNK_G, FXM.boulder, 7, rand(.45, .7));
+      }, hit);
+      if (broke || t > 60 || me.s > s + 60) { this.dispose(); return false; } return true;
     },
-    dispose() { scene.remove(m); }
+    dispose() { scene.remove(m); ses?.bitir(); OLAY_ENGEL.delete(eng); }
   });
 }
 function roar() {
   RG.roarT = 1.6; shakeT = Math.max(shakeT, .9); toast('T-REX KÜKREDİ!', true);
-  if (RG.trexPos) for (let i = 0; i < 20; i++) emit(RG.trexPos.x + rand(-10, 10), RG.trexPos.y + rand(0, 30), RG.trexPos.z + rand(-10, 10), rand(-3, 3), rand(-1, 2), rand(-3, 3), rand(2, 3.5), 1.4);
+  if (RG.trexPos) { SES.kukreme(RG.trexPos); for (let i = 0; i < 20; i++) emit(RG.trexPos.x + rand(-10, 10), RG.trexPos.y + rand(0, 30), RG.trexPos.z + rand(-10, 10), rand(-3, 3), rand(-1, 2), rand(-3, 3), rand(2, 3.5), 1.4); }
   boulder(true);   // kükreme yamaçtaki bir kayayı yerinden oynatır
 }
-/* --- Kale Yolu: yol kenarındaki fıçı istifi devrilir, fıçılar yola yuvarlanır --- */
+/* --- Kale Yolu: yol kenarındaki fıçı istifi devrilir; fıçılar ilk şeride yuvarlanır, oradan ortaya yavaşça --- */
 function barrelStack() {
-  const s0 = me.s + rand(300, 360), side = Math.random() < .7 ? 1 : -1, dir = -side;
+  const s0 = me.s + rand(380, 430), side = Math.random() < .7 ? 1 : -1, dir = -side;
   // istif bariyerin iç tarafındaki bankette durur (çitin içinden geçmesin)
   const plank = new THREE.Group(); { const p = roadPt(s0, side * (HW + 2.5)); plank.position.copy(p); frameAt(s0, F1); plank.rotation.y = Math.atan2(F1.t.x, F1.t.z); scene.add(plank); mk(plank, box(1.9, .12, 4.6), mat('#7a5034', { roughness: .9 }), 0, .06, 0); }
-  let said = false;
+  let said = false, ses = null;
   const items = [[-1.05, 0, 0], [1.05, 0, .25], [0, 1, .5]].map(([so, lvl, delay]) => {
     const g = new THREE.Group(), roll = new THREE.Group(); g.add(roll); scene.add(g);
     mk(roll, FXG.barrel, FXM.barrel, 0, 0, 0, { r: [Math.PI / 2, 0, 0] });
     for (const z of [-.45, .45]) mk(roll, FXG.band, FXM.band, 0, 0, z, { r: [Math.PI / 2, 0, 0], cast: false });
-    return { g, roll, s: s0 + so, x: side * (HW + 2.5), y: .98 + lvl * 1.5, vy: 0, v: 0, maxV: rand(8, 11), delay, hit: new Set(), done: false };
+    // üstteki fıçı ilk şeritte kalır, alttakiler bir şerit içeri kayar (aynı yerde üst üste binmesinler)
+    const o = { x: side * (HW + 2.5), dir, v: 0, hizli: rand(9, 11), yavas: lvl ? 0 : 1.3 };
+    return { g, roll, o, s: s0 + so * 2.4, y: .98 + lvl * 1.5, vy: 0, delay, hit: new Set(), done: false, eng: olayEngel(s0 + so * 2.4, o.x, .9) };
   });
   let t = 0, go = false;
   addFx({
     update(dt) {
       t += dt;
-      if (!go && items[0].s - me.s < 150) go = true;
-      let alive = false;
+      if (!go && items[0].s - me.s < 380) { go = true; ses = SES.gumburtu('fici'); SES.tok(items[0].g.position, { f0: 150, f1: 70, sure: .2, guc: .5, parlak: 1800, menzil: 60 }); }
+      let alive = false, hizMax = 0;
       for (const b of items) {
         if (b.done) continue; alive = true;
         if (go && (b.delay -= dt) <= 0) {
-          b.v = Math.min(b.maxV, b.v + 10 * dt); b.x += dir * b.v * dt;
-          const ground = .9;
-          b.vy -= 24 * dt; b.y += b.vy * dt; if (b.y < ground) { b.y = ground; b.vy = Math.abs(b.vy) > 3 ? -b.vy * .3 : 0; }
-          b.roll.rotation.z -= dir * b.v * dt / .85;
+          const v = yanAdim(b.o, dt); hizMax = Math.max(hizMax, v);
+          b.vy -= 24 * dt; b.y += b.vy * dt; if (b.y < .9) { b.y = .9; b.vy = Math.abs(b.vy) > 3 ? -b.vy * .3 : 0; }
+          b.roll.rotation.z -= dir * v * dt / .85;
         }
-        frameAt(b.s, F1); b.g.position.copy(F1.p).addScaledVector(F1.r, b.x); b.g.position.y += b.y; b.g.rotation.y = Math.atan2(F1.t.x, F1.t.z);
-        if (go) hitRacers(b.s, b.x, .9, .9, r => {
-          if (b.done) return; b.done = true; scene.remove(b.g);
-          knock(r, { slow: .68, jump: 3, kick: dir * .28, shake: .45, msg: said ? '' : 'FIÇI!' }); said = true; boom(b.g.position, .7);
+        b.eng.x = b.o.x;
+        frameAt(b.s, F1); b.g.position.copy(F1.p).addScaledVector(F1.r, b.o.x); b.g.position.y += b.y; b.g.rotation.y = Math.atan2(F1.t.x, F1.t.z);
+        if (go) hitRacers(b.s, b.o.x, .9, .9, r => {
+          if (b.done) return; b.done = true; scene.remove(b.g); OLAY_ENGEL.delete(b.eng);
+          knock(r, { slow: .68, jump: 3, kick: dir * .28, shake: .45, msg: said ? '' : 'FIÇI!' }); said = true; boom(b.g.position, .7); SES.kirilma(b.g.position, 'tahta');
         }, b.hit);
-        if (dir * b.x > HW + 2.5) { b.done = true; scene.remove(b.g); for (let i = 0; i < 6; i++) emit(b.g.position.x, b.g.position.y, b.g.position.z, rand(-2, 2), rand(1, 3), rand(-2, 2), 1.2, .7); }   // karşı bariyere çarpıp dağılır
       }
-      if (!alive && (t > 6 || go)) { if (me.s > s0 + 60) { this.dispose(); return false; } }
-      if (t > 45 || me.s > s0 + 120) { this.dispose(); return false; }
+      const ilk = items.find(b => !b.done); if (ses && ilk) ses.guncelle(ilk.g.position, hizMax);
+      if (t > 60 || me.s > s0 + 60) { this.dispose(); return false; }
       return true;
     },
-    dispose() { items.forEach(b => scene.remove(b.g)); scene.remove(plank); }
+    dispose() { items.forEach(b => { scene.remove(b.g); OLAY_ENGEL.delete(b.eng); }); scene.remove(plank); ses?.bitir(); }
   });
 }
 /* --- Değirmen Vadisi: koyun sürüsü --- */
@@ -1832,39 +1877,42 @@ function makeSheep() {
   for (const [a, b] of [[-.45, -.7], [.45, -.7], [-.45, .7], [.45, .7]]) mk(g, box(.18, .8, .18), FXM.dark, a, .4, b, { cast: false });
   scene.add(g); return g;
 }
-/* tarlada otlayan sürü; sen yaklaşınca telaşla yolun karşısına koşar */
+/* tarlada otlayan küçük sürü; sen yaklaşırken telaşla ilk şeride koşar, oradan ortaya doğru yavaşça yürüyüp durur */
 function sheepHerd() {
-  const s0 = me.s + rand(290, 340), dir = Math.random() < .5 ? 1 : -1, n = 7 + Math.floor(Math.random() * 4);
+  const s0 = me.s + rand(380, 430), dir = Math.random() < .5 ? 1 : -1, n = 3 + Math.floor(Math.random() * 3);
   let said = false, go = false;
   for (let i = 0; i < n; i++) {
-    const s = s0 + rand(-8, 8), speed = rand(6, 8); let x = -dir * rand(24, 38), t = 0, fly = null, ph = rand(0, 6), delay = rand(0, .9), gx = 1e9, gy = 0;
-    const g = makeSheep(); const hit = new Set();
+    const s = s0 + (i - (n - 1) / 2) * rand(5.5, 7.5);   // yol boyunca aralıklı (yan yana iki şeridi kapatmazlar)
+    const o = { x: -dir * rand(24, 34), dir, v: 0, hizli: rand(7, 9), yavas: rand(.9, 1.3) };
+    let t = 0, fly = null, ph = rand(0, 6), delay = rand(0, .9), gx = 1e9, gy = 0;
+    const g = makeSheep(); const hit = new Set(), eng = olayEngel(s, o.x, .8);
     addFx({
       update(dt) {
         t += dt;
-        if (!go && s0 - me.s < 170) go = true;
+        if (!go && s0 - me.s < 380) go = true;
         if (!fly) {
           const moving = go && (delay -= dt) <= 0;
-          if (moving) x += dir * speed * dt;
+          const v = moving ? yanAdim(o, dt) : 0; eng.x = o.x;
           frameAt(s, F1);
-          g.position.copy(F1.p).addScaledVector(F1.r, x);
-          const fence = Math.abs(Math.abs(x) - (HW + 3.4));   // bariyerin üstünden zıplar
-          if (Math.abs(x - gx) > .6) { gx = x; gy = Math.max(groundH(g.position.x, g.position.z), F1.p.y); }
-          g.position.y = gy + (moving ? Math.abs(Math.sin(t * 11 + ph)) * .25 : 0) + (fence < 1 ? (1 - fence) * 1.3 : 0);
-          g.rotation.set(moving ? 0 : Math.sin(t * 2 + ph) * .15, Math.atan2(F1.r.x * dir, F1.r.z * dir) + (moving ? 0 : Math.sin(t * .7 + ph) * .8), 0);
+          g.position.copy(F1.p).addScaledVector(F1.r, o.x);
+          const fence = Math.abs(Math.abs(o.x) - (HW + 3.4));   // bariyerin üstünden zıplar
+          if (Math.abs(o.x - gx) > .6) { gx = o.x; gy = Math.max(groundH(g.position.x, g.position.z), F1.p.y); }
+          g.position.y = gy + (v > .5 ? Math.abs(Math.sin(t * (v > 3 ? 11 : 5) + ph)) * .25 : 0) + (fence < 1 ? (1 - fence) * 1.3 : 0);
+          g.rotation.set(v > .3 ? 0 : Math.sin(t * 2 + ph) * .15, Math.atan2(F1.r.x * dir, F1.r.z * dir) + (v > .3 ? 0 : Math.sin(t * .7 + ph) * .8), 0);
           if (!go && (t > 45 || me.s > s0 + 40)) { this.dispose(); return false; }
-          hitRacers(s, x, .9, .8, r => {
+          hitRacers(s, o.x, .9, .8, r => {
             fly = { v: F1.t.clone().multiplyScalar(r.v * .6).addScaledVector(F1.r, rand(-4, 4)).setY(rand(7, 11)), w: rand(-12, 12), t: 0 };
+            OLAY_ENGEL.delete(eng); SES.tok(g.position, { f0: 110, f1: 60, sure: .18, guc: .5, parlak: 700, gurultuG: .3 });
             knock(r, { slow: .82, kick: rand(-.15, .15), shake: .25, msg: said ? '' : 'MEEE!' }); said = true;
           }, hit);
-          if (dir * x > HW + 24 || t > 45) { this.dispose(); return false; }
+          if (t > 60 || me.s > s0 + 60) { this.dispose(); return false; }
         } else {
           fly.t += dt; fly.v.y -= 22 * dt; g.position.addScaledVector(fly.v, dt); g.rotation.x += fly.w * dt; g.rotation.z += fly.w * .6 * dt;
           if (fly.t > 2.2) { this.dispose(); return false; }
         }
         return true;
       },
-      dispose() { scene.remove(g); }
+      dispose() { scene.remove(g); OLAY_ENGEL.delete(eng); }
     });
   }
 }
@@ -1882,6 +1930,7 @@ function setLights(level) {
 // bölge olayları etkin temaya aittir; kendi olaylarını tema dosyası yönetir
 function updateRegionEvents(dt, raceT) {
   DUNYA.olay(dt, raceT);
+  SES.ruzgar(RFX.wind, time);
   RFX.list = RFX.list.filter(o => o.update(dt));
 }
 function kraliyetOlay(dt, raceT) {
@@ -1907,10 +1956,11 @@ function kraliyetOlay(dt, raceT) {
     if ((RFX.cannonT -= dt) <= 0) { fireCannon(); RFX.cannonT = rand(2.5, 4.5); }
     if ((RFX.tentT -= dt) <= 0) { tentacleSlam(); RFX.tentT = rand(8, 12); }
   }
+  SES.yanki(Z.tunnel ? 1 : 0);   // tünelde motor yankılanır
   if (Z.tunnel && RFX.tunnelLap !== lap) { RFX.tunnelLap = lap; if (Math.random() < .65) RFX.blackout = { t: -rand(.4, 1.1) }; }
   if (RFX.blackout) {
     const b = RFX.blackout; b.t += dt;
-    if (b.t >= 0 && !b.said) { b.said = true; toast('IŞIKLAR SÖNDÜ!'); }
+    if (b.t >= 0 && !b.said) { b.said = true; toast('IŞIKLAR SÖNDÜ!'); SES.elektrik(); }
     let lvl = 1;
     if (b.t >= 0 && b.t < .5) lvl = Math.sin(b.t * 40) > 0 ? 1 : 0;
     else if (b.t >= .5 && b.t < 3.2) lvl = 0;
@@ -1933,10 +1983,10 @@ function kraliyetOlay(dt, raceT) {
     for (const r of racers) { if (r.remote) continue; const lim = r.me && !AUTO_ALL ? wallLim(r) : HW - 1.3; r.x = clamp(r.x + gust * dt * (r.me ? 1 : .5), -lim, lim); }
   }
 }
-if (window.__race) Object.assign(window.__race, { rfx: RFX, fire: fireCannon, tent: tentacleSlam, boulder, roar, sheep: sheepHerd, barrels: barrelStack });
+if (window.__race) Object.assign(window.__race, { rfx: RFX, fire: fireCannon, tent: tentacleSlam, boulder, roar, sheep: sheepHerd, barrels: barrelStack, olayEngel: OLAY_ENGEL });
 function resetRegionEvents() {
   RFX.list.forEach(o => o.dispose()); RFX.list = []; RFX.zone = {}; RFX.blackout = null; RFX.wind = 0;
-  RFX.tunnelLap = RFX.roarLap = RFX.windLap = -9; RG.roarT = 0;
+  RFX.tunnelLap = RFX.roarLap = RFX.windLap = -9; RG.roarT = 0; OLAY_ENGEL.clear();
   DUNYA?.olaySifirla?.();
   setLights(1);
 }
@@ -2087,12 +2137,15 @@ function resetRace() {
 // her ped, her tur için ayrı anahtar (önceki hata: anahtar pede özgü değildi → ilk pedden sonra hepsi "kullanıldı" sayılıyordu)
 const passKey = (r, obj) => r.id + ':' + Math.round(obj.s) + ':' + Math.round((r.s - obj.s) / L);
 const seeRange = r => 55 + r.v * .9;
+// bölge olaylarının yoldaki nesneleri (kaya, fıçı, koyun, buz…) de engel sayılır
+const olayOnde = (r, x, a, b, pay) => { for (const o of OLAY_ENGEL) { if (!o.w || Math.abs(o.x) > HW + 1) continue; const ds = o.s - r.s; if (ds > a && ds < b && Math.abs(o.x - x) < o.w + pay) return true; } return false; };
 function hazardAhead(r, x, range) {
-  return hazards.some(h => { const ds = h.s - r.s; return ds > -2.5 && ds < range && Math.abs(h.x - x) < 2.6 && (h.type === 'oil' || (h.type === 'boxes' && !h.hit)); });
+  return hazards.some(h => { const ds = h.s - r.s; return ds > -2.5 && ds < range && Math.abs(h.x - x) < 2.6 && (h.type === 'oil' || (h.type === 'boxes' && !h.hit)); }) || olayOnde(r, x, -2.5, range, 1.5);
 }
 function pathClear(r, x) {
   const lo = Math.min(r.x, x) - 1.2, hi = Math.max(r.x, x) + 1.2;
-  return !hazards.some(h => { if (h.type === 'ramp' || (h.type === 'boxes' && h.hit)) return false; const ds = h.s - r.s; return ds > -3 && ds < 30 + r.v * .6 && h.x > lo && h.x < hi; });
+  return !hazards.some(h => { if (h.type === 'ramp' || (h.type === 'boxes' && h.hit)) return false; const ds = h.s - r.s; return ds > -3 && ds < 30 + r.v * .6 && h.x > lo && h.x < hi; })
+    && !olayOnde(r, (lo + hi) / 2, -3, 30 + r.v * .6, (hi - lo) / 2);
 }
 function carBlocked(r, x) {
   return racers.some(o => { if (o === r) return false; const ds = o.s - r.s; return ds > -4 && ds < 16 && Math.abs(o.x - x) < 2.7 && (ds < 2.5 || o.v < r.v - .5 || r.boostT > 0); });
@@ -2115,7 +2168,7 @@ function decide(r) {
    psi = arabanın pist yönüne göre açısı. Virajda direksiyon kırmazsan psi değişir ve bariyere gidersin. */
 function simPlayer(r, dt) {
   r.nitro = clamp(r.nitro + dt * BASE.nitroRate, 0, 1);
-  if (r.nitro >= 1 && nitroReq && !r.forcing) { r.boostT = Math.max(r.boostT, BASE.nitroT); r.nitro = 0; if (!r.finished) toast('NİTRO!'); }
+  if (r.nitro >= 1 && nitroReq && !r.forcing) { r.boostT = Math.max(r.boostT, BASE.nitroT); r.nitro = 0; if (!r.finished) toast('NİTRO!'); SES.nitro(); }
   nitroReq = false;
   const boosting = r.boostT > 0; if (boosting) r.boostT -= dt;
   const offroad = Math.abs(r.x) > HW + 1.3;                     // banket: biraz yavaşlatır
@@ -2168,7 +2221,7 @@ function simPlayer(r, dt) {
       const sert = yz ? .25 : 1;
       r.v *= 1 - .45 * into * sert; r.v -= r.v * .6 * dt * sert; r.psiV *= -.12; r.psi = r.psiV + r.slip * .4; r.scrapeT = yz ? 0 : .25;
       if (r.v > 0 && r.v < r.top * .3 && input.gas) r.v = r.top * .3;   // bariyerde bile tamamen durmaz
-      if (into > .12 && !yz) { shakeT = Math.max(shakeT, .15 + into * .45); r.bumpT = .2; }
+      if (into > .12 && !yz) { shakeT = Math.max(shakeT, .15 + into * .45); r.bumpT = .2; if (r.bariyerSesT === undefined || time - r.bariyerSesT > .4) { r.bariyerSesT = time; SES.tok(null, { f0: 130, f1: 60, sure: .16, guc: .25 + into * .6, parlak: 2600, gurultuG: .5 }); } }
     }
   }
   r.scrapeT = Math.max(0, r.scrapeT - dt);
@@ -2180,7 +2233,7 @@ function simPlayer(r, dt) {
 function simAI(r, dt, raceT) {
   // nitro oyuncuyla aynı kurallarla dolar; botlar dolduktan sonra biraz gecikmeyle basar
   r.nitro = clamp(r.nitro + dt * BASE.nitroRate, 0, 1);
-  if (r.nitro >= 1) { if (r.nitroWait === undefined) r.nitroWait = r.me ? 0 : rand(.5, 3); r.nitroWait -= dt; if (r.nitroWait <= 0) { r.boostT = Math.max(r.boostT, BASE.nitroT); r.nitro = 0; r.nitroWait = undefined; } }
+  if (r.nitro >= 1) { if (r.nitroWait === undefined) r.nitroWait = r.me ? 0 : rand(.5, 3); r.nitroWait -= dt; if (r.nitroWait <= 0) { r.boostT = Math.max(r.boostT, BASE.nitroT); r.nitro = 0; r.nitroWait = undefined; if (r.me) SES.nitro(); } }
   let top = r.top;
   if (r.finished && !r.me) top *= .8;
   const boosting = r.boostT > 0;
@@ -2210,12 +2263,12 @@ function simulate(dt, raceT) {
     if (r.me && !AUTO_ALL) simPlayer(r, dt); else simAI(r, dt, raceT);
     if (r.y > 0 || r.vy > 0) {
       r.vy -= 21 * dt; r.y += r.vy * dt;
-      if (r.y <= 0) { r.y = 0; if (r.vy < -3) { r.bumpT = .25; frameAt(r.s, F2); for (let i = 0; i < 10; i++) emit(r.car.root.position.x + rand(-1, 1), r.car.root.position.y + .5, r.car.root.position.z + rand(-1, 1), F2.t.x * r.v * .25 + rand(-2, 2), rand(.5, 2), F2.t.z * r.v * .25 + rand(-2, 2), rand(.8, 1.3), rand(.5, .9)); if (r.me) shakeT = .22; } r.vy = 0; }
+      if (r.y <= 0) { r.y = 0; if (r.vy < -3) { r.bumpT = .25; frameAt(r.s, F2); for (let i = 0; i < 10; i++) emit(r.car.root.position.x + rand(-1, 1), r.car.root.position.y + .5, r.car.root.position.z + rand(-1, 1), F2.t.x * r.v * .25 + rand(-2, 2), rand(.5, 2), F2.t.z * r.v * .25 + rand(-2, 2), rand(.8, 1.3), rand(.5, .9)); if (r.me) { shakeT = .22; SES.tok(null, { f0: 85, f1: 40, sure: .2, guc: .45, parlak: 900, gurultuG: .3 }); } } r.vy = 0; }
     }
     r.bumpT = Math.max(0, r.bumpT - dt);
     // dokunduğun an etki eder: arabanın izdüşümü pede/engele değmesi yeterli
     const chw = r.car.hw, chl = r.car.hl;
-    for (const pd of pads) if (Math.abs(sd(pd.s, r.s)) < 3.2 + chl && Math.abs(r.x - pd.x) < 1.8 + chw && r.y < .3 && !r.pads.has(passKey(r, pd))) { r.pads.add(passKey(r, pd)); r.boostT = Math.max(r.boostT, BASE.padT); if (r.v > 0) r.v += BOOST * .3; /* anında itme */ if (r.me && !r.finished) toast('BOOST!'); }
+    for (const pd of pads) if (Math.abs(sd(pd.s, r.s)) < 3.2 + chl && Math.abs(r.x - pd.x) < 1.8 + chw && r.y < .3 && !r.pads.has(passKey(r, pd))) { r.pads.add(passKey(r, pd)); r.boostT = Math.max(r.boostT, BASE.padT); if (r.v > 0) r.v += BOOST * .3; /* anında itme */ if (r.me && !r.finished) { toast('BOOST!'); SES.ped(); } }
     for (const h of hazards) {
       if (h.hitBy.has(r.id)) continue;
       const [hw, hl, so] = HZ_SIZE[h.type];
@@ -2247,6 +2300,7 @@ function simulate(dt, raceT) {
       // oyuncu teması hisseder: küçük sarsıntı + yanal savrulma (yan temas)
       for (const r of [a, b]) if (r.me && !AUTO_ALL && (r.bumpCd = (r.bumpCd || 0) - dt) <= 0) {
         r.bumpCd = .35; shakeT = Math.max(shakeT, .18); r.bumpT = .15;
+        SES.tok(null, { f0: 150, f1: 75, sure: .12, guc: .3, parlak: 3000, gurultuG: .45 });   // araçlar sürtünür/değer
         if (os > ox) r.psi += (r === a ? -sg : sg) * .06;
       }
     }
@@ -2385,10 +2439,10 @@ function updateHUD(raceT) {
 function events(raceT) {
   const once = (k, t, fn) => { if (!evts[k] && time >= t) { evts[k] = true; fn(); } };
   once('intro', .05, () => $('intro').classList.remove('hide'));
-  once('c3', .55, () => showCount('3'));
-  once('c2', 1.1, () => showCount('2'));
-  once('c1', 1.65, () => showCount('1'));
-  once('go', T_GO, () => { showCount('GO!', 'go'); $('intro').classList.add('hide'); });
+  once('c3', .55, () => { showCount('3'); SES.bip(); });
+  once('c2', 1.1, () => { showCount('2'); SES.bip(); });
+  once('c1', 1.65, () => { showCount('1'); SES.bip(); });
+  once('go', T_GO, () => { showCount('GO!', 'go'); $('intro').classList.add('hide'); SES.bip(true); });
   once('hint', T_GO + 9, () => $('hint').classList.add('hide'));
   if (raceT > 3.5 && me.v < 1 && !me.finished && !AUTO_ALL && !evts.idle) {
     evts.idle = time; $('hint').classList.remove('hide');
@@ -2402,6 +2456,7 @@ function events(raceT) {
       const lt = raceT - lapStart; lapTimes.push(lt); bestLap = Math.min(bestLap, lt); lapStart = raceT; lapIdx = li;
       $('lapv').textContent = `${li + 1}/${LAPS}`;
       if (li === LAPS - 1) showCount('SON TUR!', 'fin'); else toast(`TUR ${li + 1}/${LAPS} · ${fmtTime(lt)}`, true);
+      SES.tur();
     }
     // bölge
     const reg = regionOf(me.car.root.position);
@@ -2413,7 +2468,7 @@ function onPlayerFinish() {
   const lt = raceT - lapStart; lapTimes.push(lt); bestLap = Math.min(bestLap, lt);
   $('time').textContent = fmtTime(raceT); $('laptime').textContent = fmtTime(lt);
   const pos = standings().indexOf(me) + 1;
-  showCount(pos === 1 ? 'KAZANDIN!' : `BİTİŞ! ${pos}.`, 'fin');
+  showCount(pos === 1 ? 'KAZANDIN!' : `BİTİŞ! ${pos}.`, 'fin'); SES.bitis();
   endAt = time + 5;   // 5 sn daha sür, sonra sonuç ekranı
 }
 // Sıralama listesi: bitirenler bitiş süresine göre, bitirmeyenler kalan mesafeden tahmini süreyle.
@@ -2612,6 +2667,7 @@ const API = {
   clamp, sstep, lerp, rand, sr, srand, wrapA, canvasTex, rrect, textSign, TEX, C, rbox, box, cyl, sph, cone, mat, mk, dummy,
   frameAt, mkF, F1, F2, F3, sAt, sd, inRange, roadPt, ribbon, roadNear, pedKur, PED_YERI, mergeTree,
   emit, boom, shatter, knock, hitRacers, addFx, toast, setLights, FXG, FXM, M, headlight, RFX, wallLim,
+  SES, yanAdim, olayEngel, OLAY_ENGEL, ILK_SERIT, ORTA_SERIT,
   sarsinti: v => { shakeT = Math.max(shakeT, v); },
   get L() { return L; }, get START_S() { return START_S; }, get me() { return me; }, racers, get time() { return time; }, get AUTO_ALL() { return AUTO_ALL; },
 };
@@ -2697,6 +2753,7 @@ function loop() {
     if (idleFrame++ % 20 !== 0) return;
     clock.getDelta(); for (const f of anim) f(performance.now() / 1000);
     updateCamera(0); DUNYA.kare?.(time); updateHUD(-1); updateGrade();
+    SES.motor({ aktif: false, dt: .33 }); SES.surtunme(0, false); SES.yanki(0); SES.ruzgar(0, 0);   // lobide motor susar
     if (DBG.has('low')) renderer.render(scene, camera); else composer.render();
     return;
   }
@@ -2719,6 +2776,11 @@ function loop() {
   for (const f of anim) f(time);
   updateCamera(dt);
   DUNYA.kare?.(time);
+  // ses: motor (gaz, hız, vites), lastik kayması ve bariyere sürtünme
+  SES.dinle(camera);
+  SES.motor({ v: me.v, ust: me.top, gaz: (AUTO_ALL ? me.acc > .5 : input.gas) && !me.finished, nitro: me.boostT > 0, aktif: true, dt });
+  const kayma = me.y < .05 && Math.abs(me.v) > 8 ? clamp((Math.abs(me.slip || 0) - .06) * 5, 0, 1) + (me.slipT > 0 ? .8 : 0) + (!AUTO_ALL && input.brake && me.v > 12 ? .5 : 0) : 0;
+  SES.surtunme(kayma, me.scrapeT > 0 && Math.abs(me.v) > 3);
   sun.target.position.copy(me.car.root.position); sun.position.copy(me.car.root.position).addScaledVector(LIGHT_DIR, 200);
   updateHUD(raceT);
   updateGrade();
@@ -2778,6 +2840,9 @@ addEventListener('message', e => {
   else if (NET.ag) NET.ag.cik();
   else if (window.parent !== window) window.parent.postMessage({ tip: 'yaris-cik' }, location.origin);
 });
+// ses aç/kapat (tercih hatırlanır)
+$('sesBtn').classList.toggle('kapali', !SES.acikMi());
+$('sesBtn').addEventListener('click', e => { e.stopPropagation(); SES.baslat(); $('sesBtn').classList.toggle('kapali', !SES.acKapa()); $('sesBtn').blur(); });
 // yarıştan çıkış: yanlışlıkla basılmasın diye iki dokunuş
 let quitT = 0;
 $('quit').addEventListener('click', () => {

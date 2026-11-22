@@ -22,6 +22,7 @@ export function tema(A) {
   const CTRL = YOL.map(([x, z, y = 0]) => [c(x), y, c(z)]);
   const BORU_R = 15, BORU_DIS = 16.2, BORU_Y = BORU_DIS;   // karton borunun iç/dış yarıçapı (birim), yerde yatıyor
   const boru = { a: 0, b: 0 }, masa = { a: 0, b: 0 };
+  let buzA = 0, buzB = 0, kediA = 0, kediB = 0;   // buzdolabı önü ve kedi köşesi (yandan gelenlerin yeri)
 
   /* ---------- dokular ---------- */
   // terakota fayans (el yapımı görünüm: her karo biraz farklı ton, kenarları hafif koyu), açık krem derz
@@ -256,6 +257,8 @@ export function tema(A) {
     ENV = ortamKur(); malzemeler();
     boru.a = A.sAt(c(900), c(238)); boru.b = A.sAt(c(900), c(364));
     masa.a = A.sAt(c(712), c(486)); masa.b = A.sAt(c(568), c(486));   // köfte yalnızca masanın üstünden düşer
+    buzA = A.sAt(c(580), c(100)); buzB = A.sAt(c(740), c(138));
+    kediA = A.sAt(c(330), c(597)); kediB = A.sAt(c(130), c(645));
     const L = A.L, START_S = A.START_S;
     const disBoru = (a, b) => [boru.b + 4, boru.a - 4];
 
@@ -632,25 +635,32 @@ export function tema(A) {
   ];
   const bolgeAdi = p => bolgeler.find(b => b.test(p)).name;
   const Z = { zone: {}, sosisT: 0, buzT: 0, kofteT: 0, yunT: 0, karanlik: false, buharT: 0, sisT: 0 };
+  // hepsi tek şeride sığar (aynı anda iki şeridi kapatmaz)
+  const KOFTE_R = 1.9, YUN_R = 1.9, BUZ_B = 3.0;
   const FG = {
     sosis: new THREE.CapsuleGeometry(1.8, 11, 6, 16).rotateX(Math.PI / 2),
-    buz: null, kofte: new THREE.IcosahedronGeometry(3.3, 1), yun: new THREE.SphereGeometry(4.4, 20, 14), kirinti: new THREE.DodecahedronGeometry(1, 0),
+    buz: null, kofte: new THREE.IcosahedronGeometry(KOFTE_R, 1), yun: new THREE.SphereGeometry(YUN_R, 18, 12), kirinti: new THREE.DodecahedronGeometry(1, 0),
   };
+  // [a, b] pist aralığında, en az `once` kadar ileride rastgele bir nokta (aralık geçildiyse ya da çok yakınsa null)
+  function ileride(a, b, once) {
+    const me = A.me, ilk = me.s + Math.max(once, sd(a, me.s)), son = me.s + sd(b, me.s);
+    return son - ilk > 4 ? rand(ilk, son) : null;
+  }
   function olay(dt, raceT) {
     const me = A.me, p = me.car.root.position;
     const aktif = raceT > 0 && !me.finished, reg = bolgeAdi(p);
-    const z = { ocak: aktif && reg === 'OCAK BAŞI', buz: aktif && reg === 'BUZDOLABI', masa: aktif && reg === 'YEMEK MASASI', kedi: aktif && reg === 'KEDİ KÖŞESİ' };
-    if (z.ocak && !Z.zone.ocak) Z.sosisT = 1.2;
-    if (z.buz && !Z.zone.buz) Z.buzT = .8;
-    if (z.masa && !Z.zone.masa) Z.kofteT = 1.5;
-    if (z.kedi && !Z.zone.kedi) Z.yunT = 1;
-    Z.zone = z;
-    if (z.ocak && (Z.sosisT -= dt) <= 0) { sosisFirlat(); Z.sosisT = rand(3.2, 4.8); }
-    if (z.buz && (Z.buzT -= dt) <= 0) { buzKaydir(); Z.buzT = rand(4.5, 6.5); }
-    if (z.masa && (Z.kofteT -= dt) <= 0) { kofteDusur(); Z.kofteT = rand(3.5, 5.5); }
-    if (z.kedi && (Z.yunT -= dt) <= 0) { yunYumagi(); Z.yunT = rand(5, 8); }
-    // borunun içi loş: pozlama düşer, farlar yanar
+    // tavadan sosis tepeden düşer: yalnızca ocak başındayken. Yandan gelenler (buz, köfte, yün) ise
+    // o noktaya yaklaşırken önceden yola çıkar ki yolun ortasına vardığında sen hâlâ uzakta ol.
+    const ocak = aktif && reg === 'OCAK BAŞI';
+    if (ocak && !Z.zone.ocak) Z.sosisT = 1.2;
+    Z.zone = { ocak };
+    if (ocak && (Z.sosisT -= dt) <= 0) { sosisFirlat(); Z.sosisT = rand(3.2, 4.8); }
+    if (aktif && (Z.buzT -= dt) <= 0) { const s = ileride(buzA, buzB, 340); if (s !== null) { buzKaydir(s); Z.buzT = rand(5, 7); } else Z.buzT = .5; }
+    if (aktif && (Z.kofteT -= dt) <= 0) { const s = ileride(masa.a, masa.b, 340); if (s !== null) { kofteDusur(s); Z.kofteT = rand(4.5, 6.5); } else Z.kofteT = .5; }
+    if (aktif && (Z.yunT -= dt) <= 0) { const s = ileride(kediA, kediB, 340); if (s !== null) { yunYumagi(s); Z.yunT = rand(5, 8); } else Z.yunT = .5; }
+    // borunun içi loş: pozlama düşer, farlar yanar, motor sesi yankılanır
     const k = boruK(me.s);
+    A.SES.yanki(k);
     if (k > .001) { setLights(1 - .38 * k); Z.karanlik = true; } else if (Z.karanlik) { setLights(1); Z.karanlik = false; }
     // ocakta buhar, buzdolabının aralığından soğuk sis
     const dTava = RG.tava ? p.distanceTo(RG.tava) : 1e9;
@@ -658,17 +668,18 @@ export function tema(A) {
     if (RG.kapi && p.x > c(520) && p.x < c(860) && p.z < c(260) && (Z.sisT -= dt) <= 0) { Z.sisT = .1; emit(c(612) + rand(0, 18), rand(2, 30), c(68) + rand(0, 6), rand(-2, 2), rand(-1.5, -.5), rand(4, 9), rand(4, 7), rand(1.5, 2.4)); }
     if (kediGovde) kediGovde.scale.y = .62 + Math.sin(A.time * 2.2) * .025;
   }
-  function olaySifirla() { Z.zone = {}; Z.karanlik = false; }
-  // --- Ocak başı: tavadan fırlayan dev sosis, yola düşüp bir süre yatar ---
+  function olaySifirla() { Z.zone = {}; Z.karanlik = false; Z.buzT = Z.kofteT = Z.yunT = 0; A.SES.yanki(0); }
+  // --- Ocak başı: tavadan fırlayan dev sosis, tek bir şeride boylamasına düşüp bir süre yatar ---
   function sosisFirlat() {
-    const me = A.me, s = me.s + rand(85, 120), x = Math.random() < .5 ? clamp(me.x, -5.8, 5.8) : A.LANES[Math.floor(Math.random() * 4)];
+    const me = A.me, s = me.s + rand(85, 120), x = Math.random() < .5 ? A.LANES.reduce((a, b) => Math.abs(b - me.x) < Math.abs(a - me.x) ? b : a) : A.LANES[Math.floor(Math.random() * 4)];
     const hedef = A.roadPt(s, x); hedef.y += 1.8;
     const from = RG.tava.clone();
     const m = mk(A.scene, FG.sosis, M.sosis);
-    const mark = new THREE.Mesh(FXG.ring, FXM.marker.clone()); mark.position.copy(hedef); mark.position.y = hedef.y - 1.6; mark.scale.set(1, 1, 2.2); frameAt(s, F1); mark.rotation.y = Math.atan2(F1.t.x, F1.t.z); A.scene.add(mark);
+    const mark = new THREE.Mesh(FXG.ring, FXM.marker.clone()); mark.position.copy(hedef); mark.position.y = hedef.y - 1.6; mark.scale.set(.6, 1, 1.9); frameAt(s, F1); mark.rotation.y = Math.atan2(F1.t.x, F1.t.z); A.scene.add(mark);
     const yaw = Math.atan2(F1.t.x, F1.t.z);
-    const T = 1.35; let t = 0, yer = 0; const hit = new Set(), carp = new Set();
+    const T = 1.35; let t = 0, yer = 0; const hit = new Set(), carp = new Set(), eng = A.olayEngel(s, x, 0);
     for (let i = 0; i < 8; i++) emit(from.x + rand(-6, 6), from.y, from.z + rand(-6, 6), rand(-3, 3), rand(5, 9), rand(-3, 3), rand(4, 7), 1.2);
+    A.SES.cizirti(from);
     addFx({
       update(dt) {
         t += dt;
@@ -678,108 +689,120 @@ export function tema(A) {
           mark.material.opacity = .35 + .45 * Math.abs(Math.sin(t * 12)); return true;
         }
         if (!yer) {
-          yer = 1; m.position.copy(hedef); m.rotation.set(0, yaw, 0); A.scene.remove(mark); mark.material.dispose();
+          yer = 1; m.position.copy(hedef); m.rotation.set(0, yaw, 0); A.scene.remove(mark); mark.material.dispose(); eng.w = 1.8;
+          A.SES.tok(hedef, { f0: 120, f1: 55, sure: .25, guc: .8, parlak: 900, gurultuG: .4 });
           for (let i = 0; i < 14; i++) emit(hedef.x + rand(-4, 4), hedef.y, hedef.z + rand(-4, 4), rand(-4, 4), rand(1, 4), rand(-4, 4), rand(1.2, 2), rand(.6, 1));
-          hitRacers(s, x, 7, 2.2, r => knock(r, { slow: .6, jump: 3.5, kick: rand(-.25, .25), shake: .5, msg: 'SOSİS!' }), hit);
+          hitRacers(s, x, 7, 1.8, r => knock(r, { slow: .6, jump: 3.5, kick: rand(-.25, .25), shake: .5, msg: 'SOSİS!' }), hit);
           if (me.car.root.position.distanceTo(hedef) < 50) A.sarsinti(.35);
         }
         yer += dt;
-        hitRacers(s, x, 7, 2.2, r => { if (!hit.has(r)) knock(r, { slow: .72, jump: 2.5, kick: rand(-.2, .2), shake: .3, msg: 'SOSİS!' }); }, carp);
-        if (yer > 3.2) { const k = clamp((yer - 3.2) / .4, 0, 1); m.scale.setScalar(1 - k); }
+        hitRacers(s, x, 7, 1.8, r => { if (!hit.has(r)) knock(r, { slow: .72, jump: 2.5, kick: rand(-.2, .2), shake: .3, msg: 'SOSİS!' }); }, carp);
+        if (yer > 3.2) { const k = clamp((yer - 3.2) / .4, 0, 1); m.scale.setScalar(1 - k); eng.w = 0; }
         if (yer > 3.6 || me.s > s + 160) { this.dispose(); return false; }
         return true;
       },
-      dispose() { A.scene.remove(m); A.scene.remove(mark); }
+      dispose() { A.scene.remove(m); A.scene.remove(mark); A.OLAY_ENGEL.delete(eng); }
     });
   }
-  // --- Buzdolabı: aralıktan düşen buz küpleri yolun karşısına kayar ---
-  function buzKaydir() {
-    FG.buz ??= new A.RoundedBoxGeometry(3.8, 3.8, 3.8, 2, .7);
-    const me = A.me, s0 = me.s + rand(150, 200), dir = 1;   // buzdolabı yolun solunda
-    // küpler bariyerin iç tarafına (bankete) yukarıdan düşer, sonra yolun karşısına kayar
-    const parca = [0, 1, 2].map(i => ({ m: mk(A.scene, FG.buz, M.buz), s: s0 + i * rand(5, 9), x: -(HW + 1.6), y: 30 + i * 9, vy: 0, v: 0, maxV: rand(10, 15), gec: i * .35, w: rand(-3, 3), bitti: false, hit: new Set() }));
+  // --- Buzdolabı: aralıktan buz küpleri banketlere düşer; ilk şeride hızla kayar, oradan ortaya yavaşça ---
+  function buzKaydir(s0) {
+    FG.buz ??= new A.RoundedBoxGeometry(BUZ_B, BUZ_B, BUZ_B, 2, .55);
+    const me = A.me, dir = 1;   // buzdolabı yolun solunda
+    const parca = [0, 1].map(i => {
+      const s = s0 + i * rand(6, 9), o = { x: -(HW + 1.6), dir, v: 0, hizli: rand(11, 14), yavas: i ? 0 : 1.3 };   // ikincisi ilk şeritte kalır
+      return { m: mk(A.scene, FG.buz, M.buz), s, o, y: 30 + i * 9, vy: 0, gec: i * .35, w: rand(-3, 3), bitti: false, yere: false, hit: new Set(), eng: A.olayEngel(s, o.x, BUZ_B / 2) };
+    });
     let t = 0, git = false, dedi = false;
     addFx({
       update(dt) {
         t += dt;
-        if (!git && s0 - me.s < 150) git = true;
-        let canli = false;
+        if (!git && s0 - me.s < 400) git = true;
         for (const b of parca) {
-          if (b.bitti) continue; canli = true;
-          if (git) { b.vy -= 70 * dt; b.y += b.vy * dt; if (b.y < 1.95) { b.y = 1.95; b.vy = Math.abs(b.vy) > 10 ? -b.vy * .25 : 0; } }
-          if (git && b.y <= 2 && (b.gec -= dt) <= 0) { b.v = Math.min(b.maxV, b.v + 14 * dt); b.x += dir * b.v * dt; }
-          frameAt(b.s, F1); b.m.position.copy(F1.p).addScaledVector(F1.r, b.x); b.m.position.y += b.y; b.m.rotation.y += b.w * dt * (b.v > 0 ? 1 : .1);
-          if (git) hitRacers(b.s, b.x, 2, 2, r => {
-            b.bitti = true; A.scene.remove(b.m);
+          if (b.bitti) continue;
+          if (git) { b.vy -= 70 * dt; b.y += b.vy * dt; if (b.y < BUZ_B / 2 + .05) { b.y = BUZ_B / 2 + .05; if (!b.yere) { b.yere = true; frameAt(b.s, F1); A.SES.tok(F1.p.clone().addScaledVector(F1.r, b.o.x), { f0: 420, f1: 180, sure: .09, guc: .3, parlak: 6000, gurultuG: .45 }); } b.vy = Math.abs(b.vy) > 10 ? -b.vy * .25 : 0; } }
+          const v = git && b.yere && (b.gec -= dt) <= 0 ? A.yanAdim(b.o, dt) : 0; b.eng.x = b.o.x;
+          frameAt(b.s, F1); b.m.position.copy(F1.p).addScaledVector(F1.r, b.o.x); b.m.position.y += b.y; b.m.rotation.y += b.w * dt * (v > .5 ? 1 : .05);
+          if (git) hitRacers(b.s, b.o.x, BUZ_B / 2 + .2, BUZ_B / 2, r => {
+            b.bitti = true; A.scene.remove(b.m); A.OLAY_ENGEL.delete(b.eng); A.SES.kirilma(b.m.position, 'buz');
             knock(r, { slow: .8, kick: dir * .2, shake: .3, msg: dedi ? '' : 'BUZ!' }); dedi = true; r.slipT = Math.max(r.slipT, .9); r.slipDir = Math.random() < .5 ? -1 : 1;
-            A.shatter(b.m.position, F1.t.clone().multiplyScalar(r.v * .4), FG.kirinti, M.buz, 6, rand(.6, .9));
+            A.shatter(b.m.position, F1.t.clone().multiplyScalar(r.v * .4), FG.kirinti, M.buz, 6, rand(.5, .8));
           }, b.hit);
-          if (b.x > HW + 2.2) { b.bitti = true; A.scene.remove(b.m); for (let i = 0; i < 5; i++) emit(b.m.position.x, 1.5, b.m.position.z, rand(-2, 2), rand(1, 3), rand(-2, 2), 1.4, .6); }   // karşı kartona çarpıp kırılır
         }
-        if (!canli || t > 30 || me.s > s0 + 120) { this.dispose(); return false; }
+        if (t > 60 || me.s > s0 + 80) { this.dispose(); return false; }
         return true;
       },
-      dispose() { parca.forEach(b => A.scene.remove(b.m)); }
+      dispose() { parca.forEach(b => { A.scene.remove(b.m); A.OLAY_ENGEL.delete(b.eng); }); }
     });
   }
-  // --- Yemek masası: masanın kenarından düşen köfte sekip yolun karşısına yuvarlanır ---
-  function kofteDusur() {
-    const me = A.me, side = Math.random() < .5 ? -1 : 1;
-    // köfte masanın üstünde, kenarda bekler (yolun 62 birim yanı); sen yaklaşınca yuvarlanıp düşer, bariyerin üstünden yola iner
-    const ilk = me.s + 130 + Math.max(0, sd(masa.a, me.s + 130)), son = me.s + sd(masa.b, me.s);
-    if (son - ilk < 4) return;                     // masanın altını geçmişiz
-    const s = rand(ilk, son);
-    let x = side * 62, y = 115.8, vy = 0, v = 30, t = 0, yerde = false, dustu = false;
-    const m = mk(A.scene, FG.kofte, M.kofte); const hit = new Set();
+  // --- Yemek masası: köfte masanın kenarında bekler; sen yaklaşırken yuvarlanıp bankete düşer,
+  //     ilk şeride hızla, oradan ortaya yavaşça yuvarlanıp durur ---
+  function kofteDusur(s) {
+    const me = A.me, side = Math.random() < .5 ? -1 : 1, inis = side * (HW + 1.6);
+    const o = { x: side * 62, dir: -side, v: 0, hizli: 12, yavas: 1.3 };
+    let y = 112.5 + KOFTE_R, vy = 0, t = 0, yerde = false, dustu = false;
+    const vx = (62 - Math.abs(inis)) / Math.sqrt(2 * (y - KOFTE_R) / 75);   // tam bankete düşecek yatay hız
+    const m = mk(A.scene, FG.kofte, M.kofte); const hit = new Set(), eng = A.olayEngel(s, o.x, KOFTE_R);
     addFx({
       update(dt) {
         t += dt;
-        if (!dustu && s - me.s > 175) { frameAt(s, F1); m.position.copy(F1.p).addScaledVector(F1.r, x); m.position.y = F1.p.y + y; return t < 30 || (this.dispose(), false); }
+        frameAt(s, F1);
+        if (!dustu && s - me.s > 400) { m.position.copy(F1.p).addScaledVector(F1.r, o.x); m.position.y = F1.p.y + y; return t < 60 || (this.dispose(), false); }
         dustu = true;
-        vy -= 75 * dt; y += vy * dt;
-        if (y < 3.3) { y = 3.3; if (vy < -12) { vy = -vy * .35; v = Math.min(v, 14); for (let i = 0; i < 6; i++) emit(m.position.x, 1, m.position.z, rand(-3, 3), rand(1, 3), rand(-3, 3), 2, .7); } else { vy = 0; yerde = true; } }
-        if (yerde) v = Math.max(11, v - 4 * dt);
-        x -= side * v * dt;
-        const cit = Math.max(0, 5 - Math.abs(Math.abs(x) - (HW + 3.6)));   // karşı bariyerin üstünden atlar
-        frameAt(s, F1); m.position.copy(F1.p).addScaledVector(F1.r, x); m.position.y = F1.p.y + y + (yerde ? cit * .9 : 0);   // masa altında yol kilimin üstünde
-        m.rotateOnWorldAxis(F1.t, -side * v * dt / 3.3);
+        if (!yerde) {
+          vy -= 75 * dt; y += vy * dt;
+          if (side * o.x > Math.abs(inis)) o.x = side * Math.max(Math.abs(inis), Math.abs(o.x) - vx * dt);
+          if (y < KOFTE_R) { y = KOFTE_R; if (vy < -12) { vy = -vy * .3; A.SES.tok(m.position, { f0: 95, f1: 45, sure: .2, guc: .55, parlak: 700, gurultuG: .3 }); for (let i = 0; i < 6; i++) emit(m.position.x, 1, m.position.z, rand(-3, 3), rand(1, 3), rand(-3, 3), 2, .7); } else { vy = 0; yerde = true; } }
+        }
+        const v = yerde ? A.yanAdim(o, dt) : 0; eng.x = o.x;
+        m.position.copy(F1.p).addScaledVector(F1.r, o.x); m.position.y = F1.p.y + y;   // masa altında yol kilimin üstünde
+        m.rotateOnWorldAxis(F1.t, o.dir * v * dt / KOFTE_R);
         let kir = false;
-        if (y < 7) hitRacers(s, x, 3, 3.2, r => { if (kir) return; kir = true; knock(r, { slow: .66, jump: 3, kick: -side * .28, shake: .45, msg: 'KÖFTE!' }); A.shatter(m.position, F1.t.clone().multiplyScalar(r.v * .5), FG.kirinti, M.kofte, 8, rand(.7, 1.1)); }, hit);
-        if (kir || -side * x > HW + 24 || t > 30) { this.dispose(); return false; }
+        if (y < 5) hitRacers(s, o.x, KOFTE_R + .3, KOFTE_R, r => {
+          if (kir) return; kir = true; knock(r, { slow: .66, jump: 3, kick: o.dir * .28, shake: .45, msg: 'KÖFTE!' });
+          A.SES.tok(m.position, { f0: 80, f1: 40, sure: .25, guc: .7, parlak: 500, gurultuG: .5 });
+          A.shatter(m.position, F1.t.clone().multiplyScalar(r.v * .5), FG.kirinti, M.kofte, 8, rand(.5, .8));
+        }, hit);
+        if (kir || t > 60 || me.s > s + 60) { this.dispose(); return false; }
         return true;
       },
-      dispose() { A.scene.remove(m); }
+      dispose() { A.scene.remove(m); A.OLAY_ENGEL.delete(eng); }
     });
   }
-  // --- Kedi köşesi: yün yumağı ipini çözerek yolun karşısına yuvarlanır ---
-  function yunYumagi() {
-    const me = A.me, s = me.s + rand(170, 220), dir = Math.random() < .65 ? 1 : -1;
-    let x = -dir * rand(26, 34), v = 0, t = 0, ucan = null;
-    const m = mk(A.scene, FG.yun, M.yun); const hit = new Set();
+  // --- Kedi köşesi: yün yumağı ipini çözerek ilk şeride hızla, oradan ortaya yavaşça yuvarlanır ---
+  function yunYumagi(s) {
+    const me = A.me, dir = Math.random() < .65 ? 1 : -1;
+    const o = { x: -dir * rand(26, 34), dir, v: 0, hizli: 13, yavas: 1.3 };
+    let t = 0, ucan = null, git = false;
+    const m = mk(A.scene, FG.yun, M.yun); const hit = new Set(), eng = A.olayEngel(s, o.x, YUN_R);
     const ipNok = new Float32Array(3 * 24), ip = new THREE.Line(new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(ipNok, 3)), new THREE.LineBasicMaterial({ color: 0xc23a4a }));
     ip.frustumCulled = false; A.scene.add(ip);
-    frameAt(s, F1); const bas = F1.p.clone().addScaledVector(F1.r, x);
+    frameAt(s, F1); const bas = F1.p.clone().addScaledVector(F1.r, o.x);
     addFx({
       update(dt) {
         t += dt;
         frameAt(s, F1);
         if (!ucan) {
-          if (s - me.s < 150) { v = Math.min(14, v + 10 * dt); x += dir * v * dt; }
-          const cit = Math.max(0, 5 - Math.abs(Math.abs(x) - (HW + 3.6)));   // karton bariyerin üstünden zıplar
-          m.position.copy(F1.p).addScaledVector(F1.r, x); m.position.y = 4.4 + cit * .9;
-          m.rotateOnWorldAxis(F1.t, dir * v * dt / 4.4);
-          hitRacers(s, x, 3.5, 4, r => { knock(r, { slow: .72, jump: 2.5, kick: dir * .3, shake: .4, msg: 'YÜN YUMAĞI!' }); ucan = { v: F1.t.clone().multiplyScalar(r.v * .55).setY(14), t: 0 }; }, hit);
-          if (dir * x > HW + 30 || t > 40 || me.s > s + 120) { this.dispose(); return false; }
+          if (!git && s - me.s < 400) git = true;
+          const v = git ? A.yanAdim(o, dt) : 0; eng.x = o.x;
+          const cit = Math.max(0, 3.5 - Math.abs(Math.abs(o.x) - (HW + 3.6)));   // karton bariyerin üstünden zıplar
+          m.position.copy(F1.p).addScaledVector(F1.r, o.x); m.position.y = F1.p.y + YUN_R + cit * .9;
+          m.rotateOnWorldAxis(F1.t, o.dir * v * dt / YUN_R);
+          hitRacers(s, o.x, YUN_R + .3, YUN_R, r => {
+            knock(r, { slow: .72, jump: 2.5, kick: o.dir * .3, shake: .4, msg: 'YÜN YUMAĞI!' }); A.OLAY_ENGEL.delete(eng);
+            A.SES.tok(m.position, { f0: 70, f1: 40, sure: .15, guc: .35, parlak: 400, gurultuG: .5 });
+            ucan = { v: F1.t.clone().multiplyScalar(r.v * .55).setY(14), t: 0 };
+          }, hit);
+          if (t > 60 || me.s > s + 60) { this.dispose(); return false; }
         } else {
           ucan.t += dt; ucan.v.y -= 40 * dt; m.position.addScaledVector(ucan.v, dt); m.rotation.x += 6 * dt;
-          if (m.position.y < 4.4) { m.position.y = 4.4; ucan.v.multiplyScalar(.5); ucan.v.y = Math.abs(ucan.v.y) * .4; }
+          if (m.position.y < YUN_R) { m.position.y = YUN_R; ucan.v.multiplyScalar(.5); ucan.v.y = Math.abs(ucan.v.y) * .4; }
           if (ucan.t > 2.5) { this.dispose(); return false; }
         }
-        for (let i = 0; i < 24; i++) { const k = i / 23; ipNok[i * 3] = lerp(bas.x, m.position.x, k); ipNok[i * 3 + 1] = .3 + Math.sin(k * Math.PI) * .2 + (k > .9 ? (k - .9) * 30 : 0); ipNok[i * 3 + 2] = lerp(bas.z, m.position.z, k) + Math.sin(k * 9) * .8; }
+        for (let i = 0; i < 24; i++) { const k = i / 23; ipNok[i * 3] = lerp(bas.x, m.position.x, k); ipNok[i * 3 + 1] = .3 + Math.sin(k * Math.PI) * .2 + (k > .9 ? (k - .9) * 15 : 0); ipNok[i * 3 + 2] = lerp(bas.z, m.position.z, k) + Math.sin(k * 9) * .8; }
         ip.geometry.attributes.position.needsUpdate = true;
         return true;
       },
-      dispose() { A.scene.remove(m); A.scene.remove(ip); ip.geometry.dispose(); ip.material.dispose(); }
+      dispose() { A.scene.remove(m); A.scene.remove(ip); ip.geometry.dispose(); ip.material.dispose(); A.OLAY_ENGEL.delete(eng); }
     });
   }
 

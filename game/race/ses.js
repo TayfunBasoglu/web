@@ -17,6 +17,7 @@ export function sesKur() {
     if (ctx) { if (ctx.state === 'suspended' && acik && !document.hidden) ctx.resume().catch(() => {}); return; }
     const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
     ctx = new AC();
+    if (ctx.state === 'suspended' && acik) ctx.resume().catch(() => {});   // bazı tarayıcılar askıda başlatır
     // ana çıkış: yumuşak sıkıştırıcı (ani patlamalar kulak tırmalamasın)
     const comp = ctx.createDynamicsCompressor();
     comp.threshold.value = -18; comp.knee.value = 12; comp.ratio.value = 4; comp.attack.value = .004; comp.release.value = .25;
@@ -282,7 +283,8 @@ export function sesKur() {
   // sekme arka plana geçince ses tamamen durur (pil)
   document.addEventListener('visibilitychange', () => { if (!ctx) return; if (document.hidden) ctx.suspend().catch(() => {}); else if (acik) ctx.resume().catch(() => {}); });
   // tarayıcı izni: ilk dokunuş/tuşla ses açılır
-  for (const ev of ['pointerdown', 'keydown', 'touchstart']) addEventListener(ev, baslat, { passive: true });
+  // iPhone Safari sesi çoğu zaman yalnızca parmak KALKINCA (touchend/click) açar: onlar da dinlenir
+  for (const ev of ['pointerdown', 'keydown', 'touchstart', 'touchend', 'pointerup', 'click']) addEventListener(ev, baslat, { passive: true });
 
   return {
     baslat, acKapa, acikMi: () => acik,

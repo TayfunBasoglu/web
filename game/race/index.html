@@ -243,6 +243,8 @@ body.lobide #hud,body.lobide .pad{visibility:hidden}
 <div id="cevir"><div><b>↻</b>Yarış için telefonunu yan çevir</div></div>
 <div id="loading">Harita hazırlanıyor…</div>
 
+<!-- iOS 16.4'ten eski iPhone'lar "import map"i bilmez: bu küçük yama onlarda da yüklenmesini sağlar (yeni tarayıcılarda hiçbir şey yapmaz) -->
+<script async src="https://cdn.jsdelivr.net/npm/es-module-shims@1.10.0/dist/es-module-shims.min.js"></script>
 <script type="importmap">
 { "imports": {
   "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
@@ -2439,11 +2441,38 @@ addEventListener('keydown', e => {
   if (e.code === 'Space' || e.code === 'ShiftLeft' || e.code === 'ShiftRight') { nitroReq = true; e.preventDefault(); }
 });
 addEventListener('keyup', e => { const k = KEYS[e.code]; if (k) { tusla[k] = false; girdiGuncelle(); } });
-// pencere odağı gider ya da sekme arka plana geçerse hiçbir tuş basılı kalmasın
+// sekme arka plana geçerse hiçbir tuş/parmak basılı kalmasın
 function girdiSifirla() { parmak.clear(); for (const k in tusla) tusla[k] = false; girdiGuncelle(); }
-addEventListener('blur', girdiSifirla);
+// Pencere odağı giderse yalnızca KLAVYE tuşları bırakılır. iPhone Safari'de oyun site içindeki çerçevede çalışır ve
+// dokunurken odak kaybı (blur) gelebilir: eskiden bu, basılı parmakları da silip gazı anında bırakıyordu
+// ("gaza basıyorum ama gitmiyor"). Parmaklar yalnızca kalkınca / iptal edilince / sekme gizlenince bırakılır.
+addEventListener('blur', () => { for (const k in tusla) tusla[k] = false; girdiGuncelle(); });
 document.addEventListener('visibilitychange', () => { if (document.hidden) girdiSifirla(); });
 document.addEventListener('contextmenu', e => e.preventDefault());
+// iPhone: kontrollere dokunurken sistem hareketleri (büyüteç, çift dokunuşla yakınlaştırma, kaydırma, metin seçme)
+// başlamasın; bunlar dokunmayı "iptal" edip gazı bırakabiliyordu. Menüler ve düğmeler (çık, ses) etkilenmez.
+for (const ev of ['touchstart', 'touchmove']) addEventListener(ev, e => {
+  if (!dokunmaAcik() || e.target.closest?.('button:not(.btn), #lobi, #end')) return;
+  if (e.cancelable) e.preventDefault();
+}, { passive: false });
+// çok eski iPhone'lar (iOS 12 ve öncesi) "pointer" olaylarını bilmez: kontroller dokunma olaylarıyla aynı mantıkla çalışır
+if (!window.PointerEvent) {
+  addEventListener('touchstart', e => {
+    if (!dokunmaAcik()) return; tusOlc();
+    for (const t of e.changedTouches) {
+      const el = document.elementFromPoint(t.clientX, t.clientY);
+      if (el?.closest('#nitro')) { nitroReq = true; continue; }
+      if (el?.closest('button:not(.btn), #lobi, #end')) continue;
+      const k = kontrolBul(t.clientX, t.clientY, null); if (k) parmak.set('t' + t.identifier, k);
+    }
+    girdiGuncelle();
+  }, { passive: false });
+  addEventListener('touchmove', e => {
+    for (const t of e.changedTouches) { const id = 't' + t.identifier; if (parmak.has(id)) parmak.set(id, kontrolBul(t.clientX, t.clientY, parmak.get(id))); }
+    girdiGuncelle();
+  }, { passive: true });
+  for (const ev of ['touchend', 'touchcancel']) addEventListener(ev, e => { for (const t of e.changedTouches) parmak.delete('t' + t.identifier); girdiGuncelle(); });
+}
 
 /* =========================================================
    Yarış mantığı
@@ -2969,7 +2998,7 @@ async function beginRace({ kadro, baslangic, ben, host, tema }) {
   NET.on = true; NET.startAt = baslangic; NET.final = null; NET.sendT = 0;
   for (const r of racers) r.remote = !r.me && ((r.human && !r.dropped) || !NET.host);
   resetRace();
-  started = true; window.focus(); canvas.setAttribute('tabindex', '-1'); canvas.focus();
+  started = true; if (!isTouch) { window.focus(); canvas.setAttribute('tabindex', '-1'); canvas.focus(); }   // klavye için; dokunmatikte odakla oynanmaz
   $('quit').classList.add('on'); document.body.classList.remove('lobide');
   wakeLock(true);
 }
@@ -3262,7 +3291,8 @@ function carThumbs() {
 }
 
 $('loading').classList.add('hidden');
-addEventListener('pointerdown', () => window.focus());
+// klavye tuşları çalışsın diye fareyle tıklayınca odak alınır; dokunmatikte yapılmaz (iPhone'da odak oyunu dokunuşu bozuyordu)
+addEventListener('pointerdown', e => { if (e.pointerType === 'mouse') window.focus(); });
 clock.start();
 loop();
 if (SOLO) {   // ağsız deneme (?tema=mutfak ile başka tema)

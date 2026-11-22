@@ -7,7 +7,7 @@
 <title>Crown Rally — Kraliyet Turu</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Russo+One&display=swap');
-:root{--purple:#8b46ff;--purple2:#5b22d6;--gold:#ffc21a;--gold2:#d98e00;--panel:rgba(20,15,38,.74);--rowh:clamp(26px,5.6vmin,46px)}
+:root{--gasW:clamp(100px,25vmin,196px);--nitroW:clamp(62px,14.5vmin,116px);--purple:#8b46ff;--purple2:#5b22d6;--gold:#ffc21a;--gold2:#d98e00;--panel:rgba(20,15,38,.74);--rowh:clamp(26px,5.6vmin,46px)}
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
 html,body{width:100%;height:100%;overflow:hidden;background:#1a1230;font-family:'Russo One',system-ui,sans-serif;color:#fff;touch-action:none;overscroll-behavior:none}
 #game,#fx{position:fixed;inset:0;width:100%;height:100%;display:block}
@@ -69,32 +69,34 @@ html,body{width:100%;height:100%;overflow:hidden;background:#1a1230;font-family:
 @keyframes toast{0%{opacity:0;transform:translate(-50%,20px) scale(.7)}18%{opacity:1;transform:translate(-50%,0) scale(1.08)}30%{transform:translate(-50%,0) scale(1)}75%{opacity:1}100%{opacity:0;transform:translate(-50%,-24px)}}
 #hint{position:absolute;left:50%;bottom:calc(2.5vmin + env(safe-area-inset-bottom));transform:translateX(-50%);font-size:clamp(10px,2vmin,15px);background:var(--panel);padding:.45em 1em;border-radius:99px;opacity:.95;transition:opacity .6s;white-space:nowrap}
 #hint.hide{opacity:0}
-#speedo{position:absolute;right:calc(4vmin + env(safe-area-inset-right));bottom:calc(4vmin + clamp(86px,21vmin,168px)*1.12 + clamp(60px,13.5vmin,108px) + 6vmin + env(safe-area-inset-bottom));font-size:clamp(13px,2.6vmin,20px);background:var(--panel);border-radius:9px;padding:.25em .6em;text-align:right;min-width:5.2em}
+/* hız göstergesi nitro düğmesinin solunda, aynı hizada (mini haritaya ve tuşlara binmez) */
+#speedo{position:absolute;right:calc(6vmin + var(--gasW) / 2 + var(--nitroW) / 2 + env(safe-area-inset-right));bottom:calc(6vmin + var(--gasW) * 1.12 + 2.2vmin + var(--nitroW) / 2 + env(safe-area-inset-bottom));transform:translateY(50%);font-size:clamp(13px,2.6vmin,20px);background:var(--panel);border-radius:9px;padding:.25em .6em;text-align:right;min-width:5.2em}
 #speedo b{font-weight:400;font-size:1.5em}
 #speedo small{opacity:.7;font-size:.7em;margin-left:.2em}
 /* kontroller */
-.pad{position:fixed;display:flex;gap:3vmin;align-items:center;pointer-events:none}
-#padL{left:calc(4vmin + env(safe-area-inset-left));bottom:calc(4vmin + env(safe-area-inset-bottom))}
-#padR{right:calc(4vmin + env(safe-area-inset-right));bottom:calc(4vmin + env(safe-area-inset-bottom));flex-direction:column;align-items:center;gap:2.2vmin}
-.btn{--sz:clamp(62px,15vmin,120px);width:var(--sz);height:var(--sz);border-radius:50%;pointer-events:auto;cursor:pointer;
+/* tuşlar başparmağın rahat eriştiği yükseklikte ve büyük (dokunma alanı görünen tuştan da geniştir) */
+.pad{position:fixed;display:flex;gap:2.4vmin;align-items:center;pointer-events:none}
+#padL{left:calc(3.5vmin + env(safe-area-inset-left));bottom:calc(8vmin + env(safe-area-inset-bottom))}
+#padR{right:calc(3.5vmin + env(safe-area-inset-right));bottom:calc(6vmin + env(safe-area-inset-bottom));flex-direction:column;align-items:center;gap:2.2vmin}
+.btn{--sz:clamp(76px,19vmin,150px);width:var(--sz);height:var(--sz);border-radius:50%;pointer-events:auto;cursor:pointer;
   border:clamp(2px,.5vmin,4px) solid rgba(255,255,255,.55);background:rgba(35,26,45,.38);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);
-  display:grid;place-items:center;color:rgba(255,255,255,.9);transition:transform .08s,background .15s;touch-action:none;outline:none}
+  display:grid;place-items:center;color:rgba(255,255,255,.9);transition:transform .08s,background .15s;touch-action:none;outline:none;-webkit-touch-callout:none}
 .btn svg{width:46%;height:46%}
 .btn.on{transform:scale(.9);background:rgba(255,255,255,.28)}
-#gas{--sz:clamp(86px,21vmin,168px);height:calc(var(--sz) * 1.12);border-radius:26%;border-width:clamp(3px,.6vmin,5px);
+#gas{--sz:var(--gasW);height:calc(var(--sz) * 1.12);border-radius:26%;border-width:clamp(3px,.6vmin,5px);
   background:linear-gradient(180deg,rgba(255,255,255,.16),rgba(35,26,45,.42));box-shadow:0 .6vmin 0 rgba(0,0,0,.25),inset 0 0 0 1px rgba(255,255,255,.08)}
 #gas svg{width:54%;height:54%}
 #gas.on{border-color:rgba(255,210,120,.9);box-shadow:0 .3vmin 0 rgba(0,0,0,.25),0 0 22px rgba(255,170,70,.45)}
 #gas.auto{border-color:rgba(255,210,120,.75);box-shadow:0 .6vmin 0 rgba(0,0,0,.25),0 0 22px rgba(255,170,70,.35)}
 #gas.auto svg,#gas.on svg{animation:gasPulse .45s ease-in-out infinite alternate}
 @keyframes gasPulse{from{transform:translateY(4%);opacity:.75}to{transform:translateY(-4%);opacity:1}}
-#padB{right:calc(6.5vmin + clamp(86px,21vmin,168px) + env(safe-area-inset-right));bottom:calc(4vmin + env(safe-area-inset-bottom))}
-#rev{--sz:clamp(54px,12vmin,96px);display:flex;flex-direction:column;gap:0;font-size:clamp(8px,1.6vmin,12px);letter-spacing:.04em}
+#padB{right:calc(6vmin + var(--gasW) + env(safe-area-inset-right));bottom:calc(6vmin + env(safe-area-inset-bottom))}
+#rev{--sz:clamp(66px,15.5vmin,124px);display:flex;flex-direction:column;gap:0;font-size:clamp(8px,1.6vmin,12px);letter-spacing:.04em}
 #rev svg{width:40%;height:40%}
 #wrong{position:absolute;left:50%;top:30%;transform:translate(-50%,-50%);font-size:clamp(26px,7vmin,64px);color:#fff;background:linear-gradient(90deg,#c81e3a,#ff3b5c);padding:.15em .8em;border-radius:14px;box-shadow:0 5px 0 #7a0f22;white-space:nowrap;opacity:0;transition:opacity .2s}
 #wrong.on{opacity:1;animation:wrongBlink .5s infinite alternate}
 @keyframes wrongBlink{to{filter:brightness(1.35)}}
-#nitro{--sz:clamp(60px,13.5vmin,108px);position:relative;border-color:transparent;background:rgba(30,20,55,.55)}
+#nitro{--sz:var(--nitroW);position:relative;border-color:transparent;background:rgba(30,20,55,.55)}
 #nitro .ring{position:absolute;inset:-3px;width:calc(100% + 6px);height:calc(100% + 6px);transform:rotate(-90deg)}
 #nitro .bolt{width:44%;height:44%;color:#5aa8ff;filter:drop-shadow(0 0 6px rgba(90,168,255,.7))}
 #nitro.ready{animation:ready 1s infinite}
@@ -171,6 +173,9 @@ body.lobide #hud,body.lobide .pad{visibility:hidden}
 .lsatir span{font-family:system-ui,sans-serif;font-size:.82em;color:#d9ccff;white-space:nowrap}
 .lsatir .lbtn2{background:linear-gradient(90deg,var(--purple2),var(--purple));border:0;white-space:nowrap}
 .lsatir.kapali{opacity:.6}
+.lliste{touch-action:pan-y}
+/* kısa (küçük) telefon ekranları: nitro mini haritaya binmesin */
+@media (max-height:380px){:root{--gasW:92px;--nitroW:54px}#minimap{width:92px;height:92px}#padR{gap:1.4vmin}}
 .lsatir.kapali .lbtn2{background:rgba(0,0,0,.3);cursor:default}
 #loading{position:fixed;inset:0;display:grid;place-items:center;background:#1a1230;font-size:clamp(16px,3vmin,24px);color:#c9b6ff;transition:opacity .4s;z-index:9;text-align:center;padding:4vmin}
 #loading.hidden{opacity:0;pointer-events:none}
@@ -2088,23 +2093,63 @@ const regionOf = p => DUNYA.bolgeler.find(r => r.test(p)) || DUNYA.bolgeler[DUNY
    ========================================================= */
 const input = { left: false, right: false, gas: false, brake: false };
 let nitroReq = false;
-function bindBtn(id, key) {
-  const el = $(id);
-  const on = e => { e.preventDefault(); input[key] = true; el.classList.add('on'); try { el.setPointerCapture(e.pointerId); } catch (_) { } };
-  const off = () => { input[key] = false; el.classList.remove('on'); };
-  el.addEventListener('pointerdown', on); el.addEventListener('pointerup', off); el.addEventListener('pointercancel', off); el.addEventListener('lostpointercapture', off);
-}
-bindBtn('bl', 'left'); bindBtn('br', 'right'); bindBtn('gas', 'gas'); bindBtn('rev', 'brake');
-$('nitro').addEventListener('pointerdown', e => { e.preventDefault(); nitroReq = true; $('nitro').classList.add('on'); setTimeout(() => $('nitro').classList.remove('on'), 120); });
 const KEYS = { ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', ArrowUp: 'gas', KeyW: 'gas', ArrowDown: 'brake', KeyS: 'brake' };
 const KEYBTN = { left: 'bl', right: 'br', gas: 'gas', brake: 'rev' };
+const tusla = { left: false, right: false, gas: false, brake: false };   // klavyeden basılı olanlar
+// Dokunmatik: her parmağın o an NEREDE olduğuna bakılır (tuşa kilitlenmez).
+//  - Sol taraf tek bir direksiyon alanıdır: parmak iki okun ortasının solundaysa sola, sağındaysa sağa;
+//    parmağı kaldırmadan kaydırınca yön anında değişir.
+//  - Gaz ile fren arasında kaydırınca da geçiş olur. Parmak tuşun biraz dışına kayarsa son tuş basılı kalır,
+//    yalnızca parmak kalkınca bırakılır (heyecanla kayan başparmak gazı kesmesin).
+const parmak = new Map();   // pointerId → 'left' | 'right' | 'gas' | 'brake'
+const icinde = (r, x, y, pay) => x >= r.left - pay && x <= r.right + pay && y >= r.top - pay && y <= r.bottom + pay;
+function kontrolBul(x, y, onceki) {
+  const a = $('bl').getBoundingClientRect(), b = $('br').getBoundingClientRect(), payL = a.width * .5;
+  const solAlan = x <= b.right + payL && y >= Math.min(a.top, b.top) - payL && y <= Math.max(a.bottom, b.bottom) + payL && x >= a.left - payL;
+  if (solAlan || onceki === 'left' || onceki === 'right') {
+    // direksiyona basan parmak alanın dışına taşsa bile direksiyon olarak kalır; yönü yalnızca yatay konum belirler
+    if (solAlan || x < innerWidth * .5) return x < (a.right + b.left) / 2 ? 'left' : 'right';
+  }
+  const g = $('gas').getBoundingClientRect(), f = $('rev').getBoundingClientRect();
+  const gasta = icinde(g, x, y, g.width * .2), frende = icinde(f, x, y, f.width * .2);
+  if (gasta && frende) return Math.hypot(x - (g.left + g.right) / 2, y - (g.top + g.bottom) / 2) < Math.hypot(x - (f.left + f.right) / 2, y - (f.top + f.bottom) / 2) ? 'gas' : 'brake';
+  if (gasta) return 'gas';
+  if (frende) return 'brake';
+  return onceki === 'gas' || onceki === 'brake' ? onceki : null;   // kayan başparmak son tuşu bırakmaz
+}
+function girdiGuncelle() {
+  const d = { left: false, right: false, gas: false, brake: false };
+  for (const k of parmak.values()) if (k) d[k] = true;
+  for (const k in input) {
+    input[k] = tusla[k] || d[k];
+    $(KEYBTN[k]).classList.toggle('on', input[k]);
+  }
+}
+const dokunmaAcik = () => !document.body.classList.contains('lobide') && $('end').classList.contains('hidden');
+addEventListener('pointerdown', e => {
+  if (!dokunmaAcik() || e.pointerType === 'mouse' && e.button !== 0) return;
+  if (e.target.closest('#nitro')) { e.preventDefault(); nitroReq = true; $('nitro').classList.add('on'); setTimeout(() => $('nitro').classList.remove('on'), 120); return; }
+  if (e.target.closest('button:not(.btn), #lobi, #end')) return;   // çık / ses düğmeleri ve menüler kendi işini yapar
+  const k = kontrolBul(e.clientX, e.clientY, null);
+  if (!k) return;
+  e.preventDefault(); parmak.set(e.pointerId, k); girdiGuncelle();
+}, { passive: false });
+addEventListener('pointermove', e => {
+  if (!parmak.has(e.pointerId)) return;
+  const k = kontrolBul(e.clientX, e.clientY, parmak.get(e.pointerId));
+  if (k !== parmak.get(e.pointerId)) { parmak.set(e.pointerId, k); girdiGuncelle(); }
+}, { passive: true });
+for (const ev of ['pointerup', 'pointercancel']) addEventListener(ev, e => { if (parmak.delete(e.pointerId)) girdiGuncelle(); });
 addEventListener('keydown', e => {
   const k = KEYS[e.code];
-  if (k) { input[k] = true; if (KEYBTN[k]) $(KEYBTN[k]).classList.add('on'); e.preventDefault(); }
+  if (k) { tusla[k] = true; girdiGuncelle(); e.preventDefault(); }
   if (e.code === 'Space' || e.code === 'ShiftLeft' || e.code === 'ShiftRight') { nitroReq = true; e.preventDefault(); }
 });
-addEventListener('keyup', e => { const k = KEYS[e.code]; if (k) { input[k] = false; if (KEYBTN[k]) $(KEYBTN[k]).classList.remove('on'); } });
-addEventListener('blur', () => { for (const k in input) input[k] = false; document.querySelectorAll('.btn.on').forEach(b => b.classList.remove('on')); });
+addEventListener('keyup', e => { const k = KEYS[e.code]; if (k) { tusla[k] = false; girdiGuncelle(); } });
+// pencere odağı gider ya da sekme arka plana geçerse hiçbir tuş basılı kalmasın
+function girdiSifirla() { parmak.clear(); for (const k in tusla) tusla[k] = false; girdiGuncelle(); }
+addEventListener('blur', girdiSifirla);
+document.addEventListener('visibilitychange', () => { if (document.hidden) girdiSifirla(); });
 document.addEventListener('contextmenu', e => e.preventDefault());
 
 /* =========================================================
@@ -2493,8 +2538,7 @@ function showEnd() {
   $('replay').textContent = NET.on ? 'Lobiye dön' : '↻ Tekrar yarış';
   $('replay').style.display = NET.on && !NET.final ? 'none' : '';   // sonuç kesinleşmeden lobiye dönülmez
   $('end').classList.remove('hidden'); $('quit').classList.remove('on');
-  $('wrong').classList.remove('on'); for (const k in input) input[k] = false;
-  document.querySelectorAll('.btn.on').forEach(b => b.classList.remove('on'));
+  $('wrong').classList.remove('on'); girdiSifirla();
 }
 
 /* =========================================================
@@ -2638,7 +2682,7 @@ function haritaHatasi() {
   $('haritaTekrar').onclick = () => location.reload();
 }
 function backToLobby() {
-  yarisBilet++; NET.on = false; NET.final = null; started = false; document.body.classList.add('lobide');
+  yarisBilet++; NET.on = false; girdiSifirla(); NET.final = null; started = false; document.body.classList.add('lobide');
   wakeLock(false);
   $('end').classList.add('hidden'); $('quit').classList.remove('on', 'sure'); $('quit').textContent = '✕ ÇIK';
   buildRacers(defaultRoster(myName, lastType));

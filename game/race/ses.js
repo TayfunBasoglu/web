@@ -13,11 +13,16 @@ export function sesKur() {
   let acik = depo.al('crownSes') !== '0';
   const dinleyici = { x: 0, y: 0, z: 0, sx: 1, sz: 0 };   // kamera konumu ve sağ yönü
 
+  // ses kapalıyken ses grafiği hiç çalışmaz (askıya alınır) ve hiçbir ses kurulmaz: işlemci boşuna çalışmasın
+  const hazir = () => ctx && acik;
   function baslat() {
-    if (ctx) { if (ctx.state === 'suspended' && acik && !document.hidden) ctx.resume().catch(() => {}); return; }
+    // iPhone'da arama/Siri/başka uygulama sesi araya girince durum 'interrupted' olur: yalnızca 'suspended' değil,
+    // çalışmayan her durumda yeniden başlatılır (yoksa sayfa açık kalsa da ses bir daha gelmiyordu)
+    if (ctx) { if (ctx.state !== 'running' && acik && !document.hidden) ctx.resume().catch(() => {}); return; }
     const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
     ctx = new AC();
-    if (ctx.state === 'suspended' && acik) ctx.resume().catch(() => {});   // bazı tarayıcılar askıda başlatır
+    if (!acik) ctx.suspend().catch(() => {});
+    else if (ctx.state !== 'running') ctx.resume().catch(() => {});   // bazı tarayıcılar askıda başlatır
     // ana çıkış: yumuşak sıkıştırıcı (ani patlamalar kulak tırmalamasın)
     const comp = ctx.createDynamicsCompressor();
     comp.threshold.value = -18; comp.knee.value = 12; comp.ratio.value = 4; comp.attack.value = .004; comp.release.value = .25;
@@ -37,10 +42,11 @@ export function sesKur() {
   const zaman = () => ctx.currentTime;
   function gurultuKaynak(dongu = true) { const s = ctx.createBufferSource(); s.buffer = gurultu; s.loop = dongu; return s; }
   function filtre(tip, f, q = .7) { const b = ctx.createBiquadFilter(); b.type = tip; b.frequency.value = f; b.Q.value = q; return b; }
-  // dünyadaki bir noktanın sesi: uzaklıkla azalır, sağ/sol kanala dağılır
+  // dünyadaki bir noktanın sesi: uzaklıkla azalır, sağ/sol kanala dağılır (konumsuz ses doğrudan çıkışa gider)
   function konumla(p, menzil = 60) {
-    const g = ctx.createGain(), pan = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
-    if (!p) { g.gain.value = 1; g.connect(pan || ana); if (pan) pan.connect(ana); return g; }
+    const g = ctx.createGain();
+    if (!p) { g.connect(ana); return g; }
+    const pan = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
     const dx = p.x - dinleyici.x, dz = p.z - dinleyici.z, dy = (p.y || 0) - dinleyici.y, dist = Math.hypot(dx, dy, dz);
     g.gain.value = 1 / (1 + Math.pow(dist / menzil, 1.6));
     if (pan) { pan.pan.value = clamp((dx * dinleyici.sx + dz * dinleyici.sz) / Math.max(dist, 1), -1, 1) * .8; g.connect(pan); pan.connect(ana); }
@@ -76,10 +82,11 @@ export function sesKur() {
   }
   // her kare: v hız, ust tepe hız, gaz basılı mı, nitro, aktif (yarışta mı)
   function motorGuncelle({ v = 0, ust = 50, gaz = false, nitro = false, aktif = false, dt = 1 / 60 }) {
-    if (!ctx || !motorK) return;
+    if (!hazir() || !motorK) return;
+    // sayı olmayan bir değer (NaN) ses parametresine verilirse tarayıcı her karede hata atar: sıfır sayılır
+    if (!Number.isFinite(v)) v = 0; if (!Number.isFinite(dt)) dt = 1 / 60; if (!Number.isFinite(motor.rpm)) motor.rpm = 900;
     const f = clamp(Math.abs(v) / (ust * 1.25), 0, 1);
     let vites = 1; for (let i = 1; i < VITES.length; i++) if (f >= VITES[i]) vites = i + 1;
-    vites = Math.min(vites, VITES.length);
     const alt = VITES[vites - 1], ustS = VITES[vites] ?? 1.08, oran = clamp((f - alt) / (ustS - alt), 0, 1);
     const hedefRpm = v < .5 ? (gaz ? 2600 : 900) : (vites === 1 ? 1400 : 3300) + oran * 3900 + (nitro ? 400 : 0);
     motor.rpm += (hedefRpm - motor.rpm) * (1 - Math.exp(-dt * (vites !== motor.vites ? 6 : 9)));
@@ -106,12 +113,15 @@ export function sesKur() {
     n.start(); n2.start(Math.random());
     surtK = { kayma: g, kaymaF: bp, bariyer: g2 };
   }
+  // sürekli seslerin hedefleri yalnızca değişince yazılır (her karede aynı sıfırı yeniden zamanlamak boşa iş)
+  const son = {};
+  function hedefle(ad, param, deger, t, k) { if (son[ad] === deger) return; son[ad] = deger; param.setTargetAtTime(deger, t, k); }
   function surtunme(kayma, bariyer) {
-    if (!ctx) return;
-    const t = zaman();
-    surtK.kayma.gain.setTargetAtTime(clamp(kayma, 0, 1) * .05, t, .05);
-    surtK.kaymaF.frequency.setTargetAtTime(1900 + Math.random() * 500, t, .05);
-    surtK.bariyer.gain.setTargetAtTime(bariyer ? .09 : 0, t, .04);
+    if (!hazir()) return;
+    const t = zaman(), g = clamp(kayma, 0, 1) * .05;
+    hedefle('kayma', surtK.kayma.gain, g, t, .05);
+    if (g > 0) surtK.kaymaF.frequency.setTargetAtTime(1900 + Math.random() * 500, t, .05);   // sessizken filtre oynatılmaz
+    hedefle('bariyer', surtK.bariyer.gain, bariyer ? .09 : 0, t, .04);
   }
   /* ---------- rüzgâr (köprüde yan rüzgâr) ---------- */
   function ruzgarKur() {
@@ -120,18 +130,20 @@ export function sesKur() {
     ruzgarK = { g, lp };
   }
   function ruzgar(seviye, t0) {
-    if (!ctx) return;
+    if (!hazir()) return;
     const t = zaman(), s = clamp(seviye, 0, 1);
+    if (s < .001) { hedefle('ruzgar', ruzgarK.g.gain, 0, t, .2); return; }   // rüzgâr yokken her karede yeniden zamanlanmaz
+    son.ruzgar = null;
     ruzgarK.g.gain.setTargetAtTime(s * (.05 + .03 * Math.sin(t0 * 1.3)), t, .2);
     ruzgarK.lp.frequency.setTargetAtTime(350 + s * 450 + 120 * Math.sin(t0 * 2.1), t, .2);
   }
   // tünel / karton boru: motor sesi yankılanır (0 dışarıda … 1 içeride)
-  function yanki(k) { if (ctx) yankiK.gain.setTargetAtTime(clamp(k, 0, 1) * .55, zaman(), .15); }
+  function yanki(k) { if (hazir()) hedefle('yanki', yankiK.gain, clamp(k, 0, 1) * .55, zaman(), .15); }
 
   /* ---------- tek seferlik sesler ---------- */
   // tok vuruş: düşen frekanslı sinüs (gövde) + kısa gürültü (çıtırtı)
   function tok(p, { f0 = 95, f1 = 42, sure = .22, guc = 1, parlak = 1400, gurultuG = .5, menzil = 50 } = {}) {
-    if (!ctx) return;
+    if (!hazir()) return;
     const t = zaman(), cik = konumla(p, menzil);
     const o = ctx.createOscillator(), og = ctx.createGain(); o.type = 'sine';
     o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1, t + sure);
@@ -143,7 +155,7 @@ export function sesKur() {
   }
   // patlama / top atışı: alçak gürültü süpürmesi + derin gümleme, uzun kuyruk
   function patlama(p, buyukluk = 1, menzil = 90) {
-    if (!ctx) return;
+    if (!hazir()) return;
     const t = zaman(), cik = konumla(p, menzil), sure = .9 + buyukluk * .6;
     const n = gurultuKaynak(false), lp = filtre('lowpass', 1800, .8), g = ctx.createGain();
     lp.frequency.setValueAtTime(2200, t); lp.frequency.exponentialRampToValueAtTime(140, t + sure);
@@ -153,7 +165,7 @@ export function sesKur() {
   }
   // havadan gelen şeyin ıslığı (gülle): yaklaştıkça yükselen, frekansı düşen ince ses
   function islik(sure, konumFn) {
-    if (!ctx) return;
+    if (!hazir()) return;
     const t = zaman(), o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'sine';
     o.frequency.setValueAtTime(1500, t); o.frequency.exponentialRampToValueAtTime(520, t + sure);
     g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(.05, t + sure * .85); g.gain.exponentialRampToValueAtTime(.0001, t + sure);
@@ -161,7 +173,7 @@ export function sesKur() {
   }
   // sürekli gümbürtü (yuvarlanan kaya / fıçı): tutamacı döner, her kare konum ve hız verilir
   function gumburtu(tur = 'kaya') {
-    if (!ctx) return { guncelle() {}, bitir() {} };
+    if (!hazir()) return { guncelle() {}, bitir() {} };
     const n = gurultuKaynak(), lp = filtre('lowpass', tur === 'kaya' ? 170 : 320, 1.4), g = ctx.createGain(); g.gain.value = 0;
     const pan = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
     // fıçı: tahta tıkırtısı için genlik dalgalanması
@@ -184,7 +196,7 @@ export function sesKur() {
   }
   // kırılma: taş/odun/karton parçalanması (birkaç kısa çıtırtı + gövde)
   function kirilma(p, tur = 'tas') {
-    if (!ctx) return;
+    if (!hazir()) return;
     const t = zaman(), cik = konumla(p, 55);
     const ayar = { tas: [900, .5], tahta: [1300, .45], karton: [2600, .35], buz: [5200, .3] }[tur] || [1200, .4];
     for (let i = 0; i < 5; i++) {
@@ -201,14 +213,14 @@ export function sesKur() {
   }
   // su sıçraması (ahtapot kolu denizden çıkarken)
   function sicrama(p) {
-    if (!ctx) return;
+    if (!hazir()) return;
     const t = zaman(), cik = konumla(p, 70), n = gurultuKaynak(false), hp = filtre('highpass', 700, .6), lp = filtre('lowpass', 5000, .6), g = ctx.createGain();
     g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(.35, t + .05); g.gain.exponentialRampToValueAtTime(.0001, t + .9);
     n.connect(hp); hp.connect(lp); lp.connect(g); g.connect(cik); n.start(t, Math.random()); n.stop(t + 1);
   }
   // tavada cızırtı (sosis fırlarken)
   function cizirti(p) {
-    if (!ctx) return;
+    if (!hazir()) return;
     const t = zaman(), cik = konumla(p, 80), n = gurultuKaynak(false), hp = filtre('highpass', 3500, .5), g = ctx.createGain();
     const am = ctx.createOscillator(), amg = ctx.createGain(); am.type = 'square'; am.frequency.value = 23; amg.gain.value = .12;
     am.connect(amg); amg.connect(g.gain);
@@ -217,7 +229,7 @@ export function sesKur() {
   }
   // T-Rex kükremesi: alçak, titreşimli, ağız boşluğu filtresi açılıp kapanan, kanyonda yankılanan
   function kukreme(p) {
-    if (!ctx) return;
+    if (!hazir()) return;
     const t = zaman(), sure = 2.1, cik = konumla(p, 160);
     const yan = ctx.createDelay(1); yan.delayTime.value = .32; const yg = ctx.createGain(); yg.gain.value = .35; const yf = filtre('lowpass', 900, .5);
     const tum = ctx.createGain(); tum.gain.value = 1; tum.connect(cik); tum.connect(yan); yan.connect(yf); yf.connect(yg); yg.connect(cik);
@@ -236,7 +248,7 @@ export function sesKur() {
   }
   // nitro: basınçlı gaz "pşşş" + turbo ıslığı
   function nitro() {
-    if (!ctx) return;
+    if (!hazir()) return;
     const t = zaman(), n = gurultuKaynak(false), bp = filtre('bandpass', 900, .8), g = ctx.createGain();
     bp.frequency.setValueAtTime(700, t); bp.frequency.exponentialRampToValueAtTime(3200, t + .5);
     g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(.16, t + .04); g.gain.exponentialRampToValueAtTime(.0001, t + 1.1);
@@ -247,7 +259,7 @@ export function sesKur() {
   }
   // hız pedi: kısa hava hışırtısı
   function ped() {
-    if (!ctx) return;
+    if (!hazir()) return;
     const t = zaman(), n = gurultuKaynak(false), bp = filtre('bandpass', 1500, 1.2), g = ctx.createGain();
     bp.frequency.setValueAtTime(600, t); bp.frequency.exponentialRampToValueAtTime(2600, t + .3);
     g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(.09, t + .03); g.gain.exponentialRampToValueAtTime(.0001, t + .45);
@@ -255,7 +267,7 @@ export function sesKur() {
   }
   // elektrik kesilmesi (tünelde ışıklar söner): alçalan uğultu + şak
   function elektrik() {
-    if (!ctx) return;
+    if (!hazir()) return;
     const t = zaman(), o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'sawtooth';
     o.frequency.setValueAtTime(110, t); o.frequency.exponentialRampToValueAtTime(40, t + .5);
     g.gain.setValueAtTime(.05, t); g.gain.exponentialRampToValueAtTime(.0001, t + .5);
@@ -268,20 +280,24 @@ export function sesKur() {
     g.gain.setValueAtTime(.0001, t0); g.gain.exponentialRampToValueAtTime(guc, t0 + .01); g.gain.exponentialRampToValueAtTime(.0001, t0 + sure);
     o.connect(g); g.connect(ana); o.start(t0); o.stop(t0 + sure + .02);
   }
-  function bip(go = false) { if (ctx) { const t = zaman(); nota(go ? 1046 : 523, t, go ? .55 : .18, .14, 'square'); if (go) nota(523, t, .55, .06, 'triangle'); } }
-  function tur() { if (ctx) { const t = zaman(); nota(784, t, .18); nota(1175, t + .12, .3); } }
-  function bitis() { if (ctx) { const t = zaman(); [523, 659, 784, 1046].forEach((f, i) => nota(f, t + i * .11, i === 3 ? .7 : .2, .13)); } }
+  function bip(go = false) { if (hazir()) { const t = zaman(); nota(go ? 1046 : 523, t, go ? .55 : .18, .14, 'square'); if (go) nota(523, t, .55, .06, 'triangle'); } }
+  function tur() { if (hazir()) { const t = zaman(); nota(784, t, .18); nota(1175, t + .12, .3); } }
+  function bitis() { if (hazir()) { const t = zaman(); [523, 659, 784, 1046].forEach((f, i) => nota(f, t + i * .11, i === 3 ? .7 : .2, .13)); } }
   // eşya kutusu alındı: kısa, parlak yükselen üçlü; kalkan bir darbeyi karşıladı: metalik çınlama
-  function esya() { if (ctx) { const t = zaman(); [784, 988, 1319].forEach((f, i) => nota(f, t + i * .055, .14, .09)); } }
-  function kalkan() { if (ctx) { const t = zaman(); nota(1568, t, .35, .07, 'sine'); nota(2093, t + .02, .3, .05, 'sine'); } }
+  function esya() { if (hazir()) { const t = zaman(); [784, 988, 1319].forEach((f, i) => nota(f, t + i * .055, .14, .09)); } }
+  function kalkan() { if (hazir()) { const t = zaman(); nota(1568, t, .35, .07, 'sine'); nota(2093, t + .02, .3, .05, 'sine'); } }
 
   function acKapa(yeni = !acik) {
     acik = yeni; depo.yaz('crownSes', acik ? '1' : '0');
-    if (ctx) { ana.gain.setTargetAtTime(acik ? .85 : 0, zaman(), .05); if (acik) ctx.resume().catch(() => {}); }
+    if (ctx) {
+      ana.gain.setTargetAtTime(acik ? .85 : 0, zaman(), .05);
+      if (acik) ctx.resume().catch(() => {});
+      else setTimeout(() => { if (!acik) ctx.suspend().catch(() => {}); }, 400);   // ses kısa sürede söner, sonra grafik durur
+    }
     return acik;
   }
-  // sekme arka plana geçince ses tamamen durur (pil)
-  document.addEventListener('visibilitychange', () => { if (!ctx) return; if (document.hidden) ctx.suspend().catch(() => {}); else if (acik) ctx.resume().catch(() => {}); });
+  // sekme arka plana geçince ses tamamen durur (pil); ses kapalıysa zaten askıdadır
+  document.addEventListener('visibilitychange', () => { if (!hazir()) return; if (document.hidden) ctx.suspend().catch(() => {}); else ctx.resume().catch(() => {}); });
   // tarayıcı izni: ilk dokunuş/tuşla ses açılır
   // iPhone Safari sesi çoğu zaman yalnızca parmak KALKINCA (touchend/click) açar: onlar da dinlenir
   for (const ev of ['pointerdown', 'keydown', 'touchstart', 'touchend', 'pointerup', 'click']) addEventListener(ev, baslat, { passive: true });

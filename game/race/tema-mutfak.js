@@ -209,7 +209,6 @@ export function tema(A) {
     M.cerceve = mat('#f7f5f0', { roughness: .5 });
     M.perde = new THREE.MeshStandardMaterial({ color: 0xece4d6, roughness: .95, side: THREE.DoubleSide, emissive: 0x3a3226 });
     M.isik = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide, map: isikTex, color: 0xffd9a6, transparent: true, opacity: .42, blending: THREE.AdditiveBlending, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4, toneMapped: false });
-    M.golge = new THREE.MeshBasicMaterial({ color: 0x1a120c, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 });
     M.sosis = S({ map: sosisTex, roughness: .38, envMap: ENV, envMapIntensity: .4 });
     M.tava = new THREE.MeshStandardMaterial({ color: 0x2b2a2d, metalness: .5, roughness: .35, envMap: ENV });
     M.seramik = new THREE.MeshStandardMaterial({ color: 0xf6f4ee, roughness: .15, envMap: ENV, envMapIntensity: .6 });
@@ -239,20 +238,19 @@ export function tema(A) {
     return t;
   }
   // iç mekân yansıması: oda kutusu + parlak pencere
-  function ortamKur() {
-    const pm = new THREE.PMREMGenerator(A.renderer), es = new THREE.Scene();
+  function ortamKur() {   // sahne saklanır: WebGL bağlamı kaybolup gelirse yansıma yeniden çizilir (A.ortamHaritasi)
+    const es = new THREE.Scene();
     const yuz = ['#fff0dc', '#e9dccb', '#fbf7f1', '#b9a088', '#e8dccb', '#d7c7b3'].map(x => new THREE.MeshBasicMaterial({ color: x, side: THREE.BackSide }));
     es.add(new THREE.Mesh(new THREE.BoxGeometry(100, 40, 80), yuz));
     const pen = new THREE.Mesh(new THREE.PlaneGeometry(30, 14), new THREE.MeshBasicMaterial({ color: new THREE.Color(5, 4.6, 4), side: THREE.DoubleSide }));
     pen.position.set(49.5, 4, 0); pen.rotation.y = -Math.PI / 2; es.add(pen);
-    const tex = pm.fromScene(es, .03, 1, 300).texture; pm.dispose();
-    return tex;
+    return A.ortamHaritasi(es, .03, 1, 300);
   }
 
   /* =========================================================
      DÜNYA
      ========================================================= */
-  const RG = { tava: null, kapi: null };   // olayların kullandığı dekor noktaları
+  const RG = { tava: null };   // olayların kullandığı dekor noktası (sosis tavası)
   function kur(D) {
     ENV = ortamKur(); malzemeler();
     boru.a = A.sAt(c(900), c(238)); boru.b = A.sAt(c(900), c(364));
@@ -260,7 +258,7 @@ export function tema(A) {
     buzA = A.sAt(c(580), c(100)); buzB = A.sAt(c(740), c(138));
     kediA = A.sAt(c(330), c(597)); kediB = A.sAt(c(130), c(645));
     const L = A.L, START_S = A.START_S;
-    const disBoru = (a, b) => [boru.b + 4, boru.a - 4];
+    const disBoru = () => [boru.b + 4, boru.a - 4];   // borunun dışında kalan pist aralığı
 
     /* zemin, duvarlar, tavan */
     mk(D, new THREE.PlaneGeometry(c(1100), c(850)).rotateX(-Math.PI / 2), M.zemin, c(500), 0, c(375), { cast: false, recv: true });
@@ -290,7 +288,7 @@ export function tema(A) {
     const bati = new THREE.Group(); bati.position.set(0, 0, c(420)); bati.rotation.y = Math.PI / 2; D.add(bati);
     dolapSirasi(bati, 360, [[0, 60, 'kapak'], [60, 120, 'cekmece'], [120, 240, 'cift'], [240, 300, 'kapak'], [300, 360, 'cekmece']], false);
     // dolap altlarında temas gölgesi
-    golgeSerit(D, 0, 600, 60, 'x'); golgeSerit(D, 60, 420, 60, 'z');
+    golgeSerit(0, 600, 60, 'x'); golgeSerit(60, 420, 60, 'z');
 
     /* --- buzdolabı (x 610–690), kapısı hafif aralık --- */
     {
@@ -301,19 +299,19 @@ export function tema(A) {
       kutu(g, 80, 58, 6, M.celik, 40, 2, 67);                                             // alttaki dondurucu çekmecesi
       kutu(g, 50, 2.5, 3, M.celikKoyu, 40, 52, 71.5);                                     // çekmece kolu
       kutu(g, 76, 2, 2, M.celikKoyu, 40, 0, 69, { cast: false });                         // havalandırma ızgarası
-      const kapi = new THREE.Group(); kapi.position.set(c(80), 0, c(64)); kapi.rotation.y = .3; g.add(kapi); RG.kapi = kapi;
+      const kapi = new THREE.Group(); kapi.position.set(c(80), 0, c(64)); kapi.rotation.y = .3; g.add(kapi);
       kutu(kapi, 80, 120, 6, M.celik, -40, 62, 3);
       kutu(kapi, 3, 60, 4, M.celikKoyu, -74, 110, 8);                                     // kol
       mk(kapi, new THREE.PlaneGeometry(c(26), c(32)), M.cizim, c(-38), c(128), c(6.1), { cast: false, r: [0, 0, .06] });
       for (const [x, y, r] of [[-38, 146, '#e0453a'], [-58, 150, '#3a7bd5'], [-22, 112, '#45b36b'], [-60, 96, '#f2c230']]) mk(kapi, cyl(c(2.2), c(2.2), c(1), 14), mat(r, { roughness: .4 }), c(x), c(y), c(6.6), { r: [Math.PI / 2, 0, 0], cast: false });
       kutu(kapi, 74, 3, 8, M.plastikBeyaz, -40, 70, -2, { cast: false });                 // kapı içi raf
       kutu(kapi, 74, 3, 8, M.plastikBeyaz, -40, 110, -2, { cast: false });
-      golge(D, c(650), c(82), c(60), c(30), .5);
+      golge(c(650), c(82), c(60), c(30), .5);
     }
     // çöp kovası ve saksı
     mk(D, cyl(c(15), c(14), c(45), 28), M.celik, c(760), c(22.5), c(30), { recv: true });
     mk(D, cyl(c(15.2), c(15.2), c(3), 28), M.celikKoyu, c(760), c(46), c(30));
-    golge(D, c(760), c(30), c(24), c(24), .45);
+    golge(c(760), c(30), c(24), c(24), .45);
 
     /* --- pencere, perde, radyatör, bitki --- */
     {
@@ -362,7 +360,7 @@ export function tema(A) {
       kutu(D, 166, 8, 3, M.masa, mx, 63, mz - 40); kutu(D, 166, 8, 3, M.masa, mx, 63, mz + 40);
       kutu(D, 3, 8, 76, M.masa, mx - 82, 63, mz); kutu(D, 3, 8, 76, M.masa, mx + 82, 63, mz);
       for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) mk(D, cyl(c(2.6), c(3.2), c(71), 18), M.masa, c(mx + sx * 84), c(35.5), c(mz + sz * 39), { recv: true });
-      golge(D, c(mx), c(mz), c(120), c(70), .38);
+      golge(c(mx), c(mz), c(120), c(70), .38);
       // masadaki eşyalar (uzaktan görünür)
       for (const [x, z] of [[600, 455], [690, 515], [560, 510]]) { mk(D, cyl(c(12), c(8), c(2), 28), M.seramik, c(x), c(76), c(z)); }
       for (let i = 0; i < 5; i++) mk(D, sph(c(2.2), 12, 9), M.kofte, c(600 + rand(-5, 5)), c(78.5), c(455 + rand(-5, 5)));
@@ -383,18 +381,18 @@ export function tema(A) {
       kedi(D, c(bx), c(4), c(bz));
       for (const [x, z, r] of [[250, 718, '#d6453a'], [285, 722, '#3a7bd5']]) {
         mk(D, new THREE.LatheGeometry([[0, 0], [c(8), 0], [c(9.5), c(5)], [c(8.5), c(5)], [c(7), c(1)], [0, c(1)]].map(([a, b]) => new THREE.Vector2(a, b)), 28), mat(r, { roughness: .35 }), c(x), 0, c(z));
-        golge(D, c(x), c(z), c(13), c(13), .35);
+        golge(c(x), c(z), c(13), c(13), .35);
       }
       mk(D, cyl(c(7), c(7), c(.5), 24), new THREE.MeshStandardMaterial({ color: 0x9fc6d8, roughness: .02, metalness: .2, envMap: ENV }), c(285), c(3.5), c(722), { cast: false });
       const mama = new THREE.InstancedMesh(new THREE.DodecahedronGeometry(c(.8), 0), mat('#7a4a2a', { roughness: .9, flatShading: true }), 40);
       // mama yalnızca kabın içinde (yere saçılmış işlevsiz nesne yok)
       for (let i = 0; i < 40; i++) { const a = srand() * 7, r = srand() * 6; dummy.position.set(c(250 + Math.cos(a) * r), c(3.5), c(718 + Math.sin(a) * r)); dummy.rotation.set(srand() * 3, srand() * 3, 0); dummy.scale.setScalar(1); dummy.updateMatrix(); mama.setMatrixAt(i, dummy.matrix); }
       mama.castShadow = true; D.add(mama);
-      golge(D, c(bx), c(bz), c(36), c(36), .4);
+      golge(c(bx), c(bz), c(36), c(36), .4);
       // köşede kova ve paspas
       mk(D, cyl(c(16), c(13), c(30), 28), mat('#3e86c9', { roughness: .4 }), c(930), c(15), c(705), { recv: true });
       mk(D, cyl(c(.9), c(.9), c(140), 8), mat('#c7c2b8', { roughness: .5 }), c(940), c(70), c(718), { r: [.25, 0, 0] });
-      golge(D, c(930), c(705), c(22), c(22), .4);
+      golge(c(930), c(705), c(22), c(22), .4);
     }
 
     // Yolun üstünde ve kenarında işlevi olmayan nesne bırakılmaz (kırıntı, bezelye, kaşık vb. kaldırıldı):
@@ -413,7 +411,7 @@ export function tema(A) {
         const r = new THREE.Mesh(new THREE.RingGeometry(BORU_R, BORU_DIS, 56), M.boruKenar);
         r.position.copy(mid).addScaledVector(dir, sgn * len / 2); r.quaternion.copy(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), dir)); D.add(r);
       }
-      golge(D, mid.x + 6, mid.z, BORU_DIS * 1.4, len * .55, .4, Math.atan2(dir.x, dir.z));
+      golge(mid.x + 6, mid.z, BORU_DIS * 1.4, len * .55, .4, Math.atan2(dir.x, dir.z));
       // ağızların önündeki karton rampalar: yüzeyi aracın yüksekliğini veren yuzey() ile aynı (araç tam üstünde gider)
       const rm = M.boruic.clone(); rm.side = THREE.DoubleSide;
       for (const [s0, s1] of [[boru.a - RAMPA, boru.a + 1], [boru.b - 1, boru.b + RAMPA]]) {
@@ -462,7 +460,7 @@ export function tema(A) {
     }
 
     const pads = pedKur(PED_YERI, [[boru.a, boru.b]], .06);
-    // kedi nefes alıyor, buzdolabı kapısı hafifçe titriyor
+    golgeleriKur(D);   // toplanan temas gölgeleri (koyuluk başına tek parça)
     return { pads, env: ENV, yolY: .06 };
   }
 
@@ -506,7 +504,8 @@ export function tema(A) {
       mk(g, cyl(c(8), c(9), c(20), 24), mat('#d9473b', { roughness: .3, metalness: .3 }), c(150), c(100), c(30));           // su ısıtıcısı
       mk(g, sph(c(3), 12, 8), mat('#1d1c1f'), c(150), c(111), c(30));
       kutu(g, 28, 18, 16, M.celik, 350, 90, 25); kutu(g, 20, 1, 3, mat('#1d1c1f'), 350, 108, 22); kutu(g, 20, 1, 3, mat('#1d1c1f'), 350, 108, 28);   // ekmek kızartma makinesi
-      for (const [x, h, r] of [[420, 22, '#e9d7b9'], [436, 18, '#d8c39d'], [452, 26, '#f1e6d2']]) { mk(g, cyl(c(6), c(6), c(h), 20), new THREE.MeshStandardMaterial({ color: 0xf2f6f8, roughness: .05, transparent: true, opacity: .5, envMap: ENV }), c(x), c(90 + h / 2), c(18)); mk(g, cyl(c(5.4), c(5.4), c(h * .7), 16), mat(r, { roughness: 1 }), c(x), c(90 + h * .35), c(18)); mk(g, cyl(c(6.3), c(6.3), c(2.5), 20), mat('#b07a4a'), c(x), c(90 + h + 1.2), c(18)); }
+      const kavanoz = new THREE.MeshStandardMaterial({ color: 0xf2f6f8, roughness: .05, transparent: true, opacity: .5, envMap: ENV });   // üç kavanoz aynı camı paylaşır
+      for (const [x, h, r] of [[420, 22, '#e9d7b9'], [436, 18, '#d8c39d'], [452, 26, '#f1e6d2']]) { mk(g, cyl(c(6), c(6), c(h), 20), kavanoz, c(x), c(90 + h / 2), c(18)); mk(g, cyl(c(5.4), c(5.4), c(h * .7), 16), mat(r, { roughness: 1 }), c(x), c(90 + h * .35), c(18)); mk(g, cyl(c(6.3), c(6.3), c(2.5), 20), mat('#b07a4a'), c(x), c(90 + h + 1.2), c(18)); }
       kutu(g, 40, 50, 3, M.masa, 520, 90, 5, { r: [-.12, 0, 0] });                       // duvara yaslı kesme tahtası
       for (let i = 0; i < 4; i++) mk(g, sph(c(4.5), 14, 10), mat(['#c9342b', '#e0b13a', '#7fb041', '#c9342b'][i], { roughness: .4 }), c(560 + (i % 2) * 8), c(95 + (i > 1 ? 6 : 0)), c(30 + (i % 3) * 6));
     } else {
@@ -516,20 +515,29 @@ export function tema(A) {
       for (let i = 0; i < 6; i++) mk(g, sph(c(4), 8, 6), mat('#5d9b45', { roughness: .8 }), c(300 + Math.cos(i) * 5), c(110 + (i % 3) * 4), c(22 + Math.sin(i) * 5), { s: [.7, 1.3, .7] });
     }
   }
-  // yere yumuşak temas gölgesi (dikdörtgen ya da yuvarlak leke)
-  let golgeTex = null;
-  function golge(D, x, z, rx, rz, op, rot = 0) {
+  // Yere yumuşak temas gölgeleri (dikdörtgen/yuvarlak leke, dolap dibi şeridi). Saydam oldukları için genel birleştirmeye
+  // girmezler: aynı koyulukta olanlar burada toplanıp kur() sonunda tek parça olur (eskiden her leke ayrı malzeme ve
+  // ayrı çizimdi, her şerit kendi dokusunu kuruyordu).
+  let golgeTex = null, seritTex = null;
+  const golgeler = new Map();   // anahtar → { doku, op, geos }
+  function golgeEkle(anahtar, doku, op, geo) { if (!golgeler.has(anahtar)) golgeler.set(anahtar, { doku, op, geos: [] }); golgeler.get(anahtar).geos.push(geo); }
+  function golge(x, z, rx, rz, op, rot = 0) {
     golgeTex ??= canvasTex(128, 128, (g, w, h) => { const gr = g.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(.55, 'rgba(255,255,255,.6)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(0, 0, w, h); });
-    const m = new THREE.Mesh(new THREE.PlaneGeometry(rx * 2, rz * 2).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0x1a120c, alphaMap: golgeTex, transparent: true, opacity: op, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 }));
-    m.position.set(x, .1, z); m.rotation.y = rot; m.userData.noMerge = true; m.renderOrder = 2; D.add(m);
+    golgeEkle('leke' + op, golgeTex, op, new THREE.PlaneGeometry(rx * 2, rz * 2).rotateX(-Math.PI / 2).rotateY(rot).translate(x, .1, z));
   }
-  function golgeSerit(D, a, b, on, eksen) {   // dolap dibi boyunca koyu şerit
-    const t = canvasTex(8, 64, (g, w, h) => { const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(0, 0, w, h); });
-    const len = c(b - a), d = c(18);
-    const m = new THREE.Mesh(new THREE.PlaneGeometry(eksen === 'x' ? len : d, eksen === 'x' ? d : len).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0x1a120c, alphaMap: t, transparent: true, opacity: .5, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 }));
-    if (eksen === 'x') m.position.set(c((a + b) / 2), .1, c(on) + d / 2);
-    else { m.geometry.dispose(); m.geometry = new THREE.PlaneGeometry(len, d).rotateX(-Math.PI / 2); m.rotation.y = Math.PI / 2; m.position.set(c(on) + d / 2, .1, c((a + b) / 2)); }
-    m.userData.noMerge = true; m.renderOrder = 2; D.add(m);
+  function golgeSerit(a, b, on, eksen) {   // dolap dibi boyunca koyu şerit
+    seritTex ??= canvasTex(8, 64, (g, w, h) => { const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(0, 0, w, h); });
+    const len = c(b - a), d = c(18), geo = new THREE.PlaneGeometry(len, d).rotateX(-Math.PI / 2);
+    if (eksen === 'x') geo.translate(c((a + b) / 2), .1, c(on) + d / 2);
+    else geo.rotateY(Math.PI / 2).translate(c(on) + d / 2, .1, c((a + b) / 2));
+    golgeEkle('serit', seritTex, .5, geo);
+  }
+  function golgeleriKur(D) {
+    for (const { doku, op, geos } of golgeler.values()) {
+      const m = new THREE.Mesh(mergeGeometries(geos), new THREE.MeshBasicMaterial({ color: 0x1a120c, alphaMap: doku, transparent: true, opacity: op, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 }));
+      m.userData.noMerge = true; m.renderOrder = 2; D.add(m); geos.forEach(g => g.dispose());
+    }
+    golgeler.clear();
   }
   function perde(D, x, z) {
     const g = new THREE.PlaneGeometry(c(50), c(228), 24, 1); const p = g.attributes.position;
@@ -555,7 +563,7 @@ export function tema(A) {
     for (const sx of [-1, 1]) kutu(g, 3.6, 48, 3.6, M.sandalye, sx * 19, 48, -19);
     for (const y of [64, 76, 88]) kutu(g, 38, 5, 2, M.sandalye, 0, y, -19);
     for (const sz of [-1, 1]) kutu(g, 36, 3, 2, M.sandalye, 0, 14, sz * 19);
-    golge(D, c(x), c(z), c(30), c(30), .32);
+    golge(c(x), c(z), c(30), c(30), .32);
   }
   let kediGovde = null;
   function kedi(D, x, y, z) {   // simit gibi kıvrılıp uyuyan tekir
@@ -596,7 +604,8 @@ export function tema(A) {
       dummy.rotation.set(0, Math.atan2(F1.r.x, F1.r.z), 0); dummy.scale.setScalar(1); dummy.updateMatrix();
       im.setMatrixAt(k, dummy.matrix); im.setColorAt(k, renk[Math.floor(srand() * renk.length)]); k++;
     }
-    im.count = k; im.castShadow = true; D.add(im);
+    // küçük mandalların gölgesi görünmüyordu (gölge geçişinde boşuna çiziliyordu); bölgelere ayrılır, ekran dışındakiler çizilmez
+    im.count = k; im.castShadow = false; D.add(A.bolgele(im, 200));
   }
   function virajKartlari(D) {
     let son = -999;
@@ -606,9 +615,11 @@ export function tema(A) {
       frameAt(s, F1); frameAt(s + 30, F2);
       const ang = Math.acos(clamp(F1.t.dot(F2.t), -1, 1));
       if (ang < .3 || s - son < 26) continue;
-      son = s; const sag = F1.t.x * F2.t.z - F1.t.z * F2.t.x < 0, side = sag ? -1 : 1;
+      // kart virajın DIŞ yanında durur, ok dönüş yönünü gösterir (önceden iç yanda ve ters yönü gösteriyordu).
+      // F1.r sürücünün sağı; ok dokusu sağı gösterir, sola dönüşte aynalanır.
+      son = s; const solaDon = F1.t.x * F2.t.z - F1.t.z * F2.t.x < 0, side = solaDon ? 1 : -1;
       const g = new THREE.Group(); g.position.copy(F1.p).addScaledVector(F1.r, side * (HW + 6.2)); g.rotation.y = Math.atan2(F1.t.x, F1.t.z) + Math.PI; D.add(g);
-      for (const k of [-1, 1]) { const m = mk(g, kart, M.ok, 0, c(1.7), k * c(1.1), { r: [k * .55, 0, 0] }); if (!sag) m.scale.x = -1; }
+      for (const k of [-1, 1]) { const m = mk(g, kart, M.ok, 0, c(1.7), k * c(1.1), { r: [k * .55, 0, 0] }); if (solaDon) m.scale.x = -1; }
     }
   }
 
@@ -632,12 +643,12 @@ export function tema(A) {
      BÖLGELER ve OLAYLAR
      ========================================================= */
   const bolgeler = [
-    { name: 'KEDİ KÖŞESİ', sub: 'Yün yumakları yuvarlanıyor', test: p => p.z > c(560) && p.x < c(430) },
-    { name: 'YEMEK MASASI', sub: 'Masadan düşenlere dikkat', test: p => p.z > c(420) && p.x < c(850) },
-    { name: 'KARTON BORU', sub: 'Borunun içinden geç!', test: p => p.x >= c(845) },
-    { name: 'BUZDOLABI', sub: 'Buz küpleri kayıyor', test: p => p.x >= c(560) && p.z < c(300) },
-    { name: 'OCAK BAŞI', sub: 'Tavadan sosis fırlıyor!', test: p => p.x >= c(180) && p.z < c(200) },
-    { name: 'DOLAP DİBİ', sub: 'Dev mutfak dolaplarının dibinden', test: () => true },
+    { name: 'KEDİ KÖŞESİ', test: p => p.z > c(560) && p.x < c(430) },     // yün yumakları
+    { name: 'YEMEK MASASI', test: p => p.z > c(420) && p.x < c(850) },    // masadan köfte
+    { name: 'KARTON BORU', test: p => p.x >= c(845) },
+    { name: 'BUZDOLABI', test: p => p.x >= c(560) && p.z < c(300) },      // buz küpleri
+    { name: 'OCAK BAŞI', test: p => p.x >= c(180) && p.z < c(200) },      // tavadan sosis
+    { name: 'DOLAP DİBİ', test: () => true },
   ];
   const bolgeAdi = p => bolgeler.find(b => b.test(p)).name;
   const Z = { karanlik: false, buharT: 0, sisT: 0 };
@@ -674,13 +685,13 @@ export function tema(A) {
     // ocakta buhar, buzdolabının aralığından soğuk sis
     const dTava = RG.tava ? p.distanceTo(RG.tava) : 1e9;
     if (dTava < 380 && (Z.buharT -= dt) <= 0) { Z.buharT = .12; emit(RG.tava.x + rand(-12, 12), RG.tava.y + 2, RG.tava.z + rand(-10, 10), rand(-1, 1), rand(4, 7), rand(-1, 1), rand(5, 9), rand(1.4, 2.2)); }
-    if (RG.kapi && p.x > c(520) && p.x < c(860) && p.z < c(260) && (Z.sisT -= dt) <= 0) { Z.sisT = .1; emit(c(612) + rand(0, 18), rand(2, 30), c(68) + rand(0, 6), rand(-2, 2), rand(-1.5, -.5), rand(4, 9), rand(4, 7), rand(1.5, 2.4)); }
+    if (p.x > c(520) && p.x < c(860) && p.z < c(260) && (Z.sisT -= dt) <= 0) { Z.sisT = .1; emit(c(612) + rand(0, 18), rand(2, 30), c(68) + rand(0, 6), rand(-2, 2), rand(-1.5, -.5), rand(4, 9), rand(4, 7), rand(1.5, 2.4)); }
     if (kediGovde) kediGovde.scale.y = .62 + Math.sin(A.time * 2.2) * .025;
   }
   function olaySifirla() { Z.karanlik = false; A.SES.yanki(0); }
   // --- Ocak başı: tavadan fırlayan dev sosis, tek bir şeride boylamasına düşüp bir süre yatar ---
   function sosisFirlat() {
-    const me = A.me, s = me.s + rand(85, 120), x = Math.random() < .5 ? A.LANES.reduce((a, b) => Math.abs(b - me.x) < Math.abs(a - me.x) ? b : a) : A.LANES[Math.floor(Math.random() * 4)];
+    const me = A.me, s = me.s + rand(85, 120), x = Math.random() < .5 ? A.yakinSerit(me.x) : A.LANES[Math.floor(Math.random() * 4)];
     const hedef = A.roadPt(s, x); hedef.y += 1.8;
     const from = RG.tava.clone();
     const m = mk(A.scene, FG.sosis, M.sosis); A.kenarlik(m, 'kirmizi', .24);
@@ -822,7 +833,7 @@ export function tema(A) {
 
   return {
     id: 'mutfak', ad: 'DEV MUTFAK', baslik: 'Dev Mutfak', ctrl: CTRL, start: [c(90), c(330)], seed: 7702,
-    kur, bolgeler, olay, olaySifirla, yuzey,
+    kur, bolgeler, olay, olaySifirla, yuzey, farlar: true,   // farlar: karton borunun içi loş (farlar yanar)
     get yasak() { return [[boru.a, boru.b]]; },
     isik: { gok: 0xfff0e0, yer: 0x7a5a44, gokG: .62, gunes: 0xffdcb4, gunesG: 2.1, gunesYon: [.72, .62, .3], isikYon: [.72, .62, .3],
       sis: 0xe6dccd, sisYakin: 600, sisUzak: 3200, pozlama: 1.035, arka: 0xe6dccd, ton: [.82, .76, .7], golge: [.02, .012, 0], gunesParlama: false },

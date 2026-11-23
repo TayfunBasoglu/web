@@ -258,8 +258,8 @@ export function tema(A) {
     M.iskele = mat('#d9d6cf', { roughness: .5, metalness: .4 });
   }
   // gökyüzü yansıması (cam kuleler ve araç boyaları gökyüzünü yansıtır)
-  function ortamKur() {
-    const pm2 = new THREE.PMREMGenerator(A.renderer), es = new THREE.Scene();
+  function ortamKur() {   // sahne saklanır: WebGL bağlamı kaybolup gelirse yansıma yeniden çizilir (A.ortamHaritasi)
+    const es = new THREE.Scene();
     es.add(new THREE.Mesh(new THREE.SphereGeometry(100, 32, 16), new THREE.MeshBasicMaterial({ map: gokTex, side: THREE.BackSide })));
     const yer = new THREE.Mesh(new THREE.CircleGeometry(99, 32).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0x8e8a84 })); yer.position.y = -6; es.add(yer);
     for (let i = 0; i < 14; i++) {   // ufuktaki binalar
@@ -267,8 +267,7 @@ export function tema(A) {
       const b = new THREE.Mesh(new THREE.BoxGeometry(14, h, 14), new THREE.MeshBasicMaterial({ color: srand() < .5 ? 0x7f95a8 : 0xb8b2a6 }));
       b.position.set(Math.cos(a) * 80, h / 2 - 6, Math.sin(a) * 80); es.add(b);
     }
-    const tex = pm2.fromScene(es, .03, 1, 300).texture; pm2.dispose();
-    return tex;
+    return A.ortamHaritasi(es, .03, 1, 300);
   }
 
   /* ---------- yardımcılar ---------- */
@@ -286,7 +285,8 @@ export function tema(A) {
   }
   const parca = (g, geo, m, x, y, z, o = {}) => mk(g, geo, m, x, y, z, { recv: true, ...o });
   // ana yolu ve yan sokakları çizer: haritadaki çoklu çizgi (piksel) → yumuşak şerit
-  const SOKAKLAR = [];
+  const SOKAKLAR = [], SOKAK_HUCRE = 40, SOKAK_IZGARA = new Map();   // ızgara: hücre → [x, z, yarıçap, …]
+  let sokakYarEnFazla = 0;
   function serit(pxNoktalar, genM, malz, y, vLen = 40) {
     const noktalar = pxNoktalar.map(([x, yy]) => { const [a, b] = pm(x, yy); return new THREE.Vector3(a, 0, b); });
     const egri = new THREE.CatmullRomCurve3(noktalar, false, 'centripetal');
@@ -305,6 +305,11 @@ export function tema(A) {
     if (g.attributes.normal.getY(0) < 0) { for (let i = 0; i < idx.length; i += 3) [idx[i + 1], idx[i + 2]] = [idx[i + 2], idx[i + 1]]; g.setIndex(idx); g.computeVertexNormals(); }
     const m = new THREE.Mesh(g, malz); m.receiveShadow = true; D0.add(m);
     SOKAKLAR.push({ pts, yar });
+    for (const p of pts) {   // ızgaraya da yazılır: yer denetimi yalnızca yakın hücrelerdeki noktalara bakar
+      const k = Math.floor(p.x / SOKAK_HUCRE) * 4096 + Math.floor(p.z / SOKAK_HUCRE);
+      if (!SOKAK_IZGARA.has(k)) SOKAK_IZGARA.set(k, []); SOKAK_IZGARA.get(k).push(p.x, p.z, yar);
+    }
+    sokakYarEnFazla = Math.max(sokakYarEnFazla, yar);
     return pts;
   }
   let D0 = null;   // kurulan dünyanın kökü
@@ -319,8 +324,14 @@ export function tema(A) {
     return out;
   };
   const PAY = SOKAK_KENAR + met(3.2);   // yarış sokağının ortasından bina cephesine en az (bordür + kaldırım)
+  // yan sokaklara (yarıçap + pay) kadar yakın mı: yalnızca çevredeki ızgara hücreleri aranır (eskiden her denemede
+  // bütün sokakların bütün noktaları tarandığı için harita açılışı uzuyordu)
   function sokakUzak(x, z, pay) {
-    for (const s of SOKAKLAR) for (const p of s.pts) { const dx = p.x - x, dz = p.z - z; if (dx * dx + dz * dz < (s.yar + pay) ** 2) return false; }
+    const n = Math.ceil((sokakYarEnFazla + pay) / SOKAK_HUCRE), cx = Math.floor(x / SOKAK_HUCRE), cz = Math.floor(z / SOKAK_HUCRE);
+    for (let a = -n; a <= n; a++) for (let b = -n; b <= n; b++) {
+      const l = SOKAK_IZGARA.get((cx + a) * 4096 + cz + b); if (!l) continue;
+      for (let i = 0; i < l.length; i += 3) { const dx = l[i] - x, dz = l[i + 1] - z, r = l[i + 2] + pay; if (dx * dx + dz * dz < r * r) return false; }
+    }
     return true;
   }
   function binaBos(cx, cz, w, d, rot) {
@@ -388,16 +399,18 @@ export function tema(A) {
   function yaziMalzeme(metin, { renk = '#ffffff', arka = null, ust = null } = {}) {
     const anahtar = [metin, renk, arka, ust].join('|');
     if (yaziMalz.has(anahtar)) return yaziMalz.get(anahtar);
-    const font = '800 92px system-ui, "Segoe UI", Arial, sans-serif', olc = document.createElement('canvas').getContext('2d'); olc.font = font;
-    const H = arka ? 176 : 128, W = Math.ceil(olc.measureText(metin).width) + (arka ? 90 : 30);
+    // 72 px yazı (eskiden 92): onlarca uzun yazı dokusu telefonun ekran kartı belleğinde ~%40 daha az yer tutar;
+    // tabelalar ekranda bundan küçük göründüğü için netlik değişmez. Ölçüler eskisinin aynı oranında.
+    const font = '800 72px system-ui, "Segoe UI", Arial, sans-serif', olc = document.createElement('canvas').getContext('2d'); olc.font = font;
+    const H = arka ? 138 : 100, W = Math.ceil(olc.measureText(metin).width) + (arka ? 70 : 24);
     const tex = canvasTex(W, H, (g, w, h) => {
       g.textAlign = 'center'; g.textBaseline = 'middle';
       if (arka) {   // mavi sokak tabelası: beyaz çerçeve, üstte ilçe adı
-        g.fillStyle = arka; g.fillRect(0, 0, w, h); g.strokeStyle = '#ffffff'; g.lineWidth = 8; g.strokeRect(10, 10, w - 20, h - 20);
-        if (ust) { g.fillStyle = '#ffffff'; g.font = '700 28px system-ui, Arial, sans-serif'; g.fillText(ust, w / 2, 40); }
-        g.font = font; g.fillStyle = '#ffffff'; g.fillText(metin, w / 2, ust ? 112 : h / 2);
+        g.fillStyle = arka; g.fillRect(0, 0, w, h); g.strokeStyle = '#ffffff'; g.lineWidth = 6; g.strokeRect(8, 8, w - 16, h - 16);
+        if (ust) { g.fillStyle = '#ffffff'; g.font = '700 22px system-ui, Arial, sans-serif'; g.fillText(ust, w / 2, 31); }
+        g.font = font; g.fillStyle = '#ffffff'; g.fillText(metin, w / 2, ust ? 88 : h / 2);
       } else {      // cepheye yazı: harfler, arkasında hafif gölge (her zeminde okunsun)
-        g.font = font; g.fillStyle = 'rgba(0,0,0,.45)'; g.fillText(metin, w / 2 + 4, h / 2 + 5);
+        g.font = font; g.fillStyle = 'rgba(0,0,0,.45)'; g.fillText(metin, w / 2 + 3, h / 2 + 4);
         g.fillStyle = renk; g.fillText(metin, w / 2, h / 2);
       }
     });
@@ -754,7 +767,8 @@ export function tema(A) {
         dummy.position.set(x, cam ? h * .86 : h * .62, z); dummy.scale.set(r, cam ? r * .45 : r * .9, r * (cam ? 1 : .95)); dummy.updateMatrix(); tac.setMatrixAt(i, dummy.matrix);
         tac.setColorAt(i, renk[Math.floor(srand() * renk.length)]);
       });
-      govde.castShadow = tac.castShadow = true; tac.receiveShadow = true; D.add(govde, tac);
+      // bölgelere ayrılır: gölge kutusunun ve ekranın dışındaki ağaçlar çizilmez (eskiden her karede hepsi gölgeye çiziliyordu)
+      govde.castShadow = tac.castShadow = true; tac.receiveShadow = true; D.add(A.bolgele(govde, 300), A.bolgele(tac, 300));
     }
 
     /* sokak lambaları (bariyerin dışında, kaldırımda) */
@@ -772,9 +786,9 @@ export function tema(A) {
 
     /* yeşil hız pedleri: virajların içine değil, çıkışına */
     const pads = pedKur(PED_YERI, Z.koseler, YOL_Y);   // asfaltın üstünde (eskiden altında kalıp görünmüyordu)
-    // gökyüzü
+    // gökyüzü: saydam olmayan her şeyden SONRA çizilir (binaların arkasında kalan gök pikselleri boşuna boyanmaz)
     RG.gok = new THREE.Mesh(new THREE.SphereGeometry(3000, 32, 16), new THREE.MeshBasicMaterial({ map: gokTex, side: THREE.BackSide, fog: false, depthWrite: false }));
-    RG.gok.renderOrder = -10; RG.gok.frustumCulled = false; RG.gok.userData.noMerge = true; D.add(RG.gok);
+    RG.gok.renderOrder = 2; RG.gok.frustumCulled = false; RG.gok.userData.noMerge = true; D.add(RG.gok);
     return { pads, env: ENV, yolY: YOL_Y };   // ortak kod araçları ve yol engellerini bu yüksekliğe oturtur
   }
 
@@ -813,12 +827,13 @@ export function tema(A) {
     for (const k of Z.koseler) {
       const [a, b] = k;
       frameAt(a, F1); frameAt(b, F2);
-      const sag = F1.t.x * F2.t.z - F1.t.z * F2.t.x < 0, side = sag ? 1 : -1;   // side: virajın dış yanı
+      const solaDon = F1.t.x * F2.t.z - F1.t.z * F2.t.x < 0, side = solaDon ? 1 : -1;   // side: virajın dış yanı (F1.r sürücünün sağı)
       // ok levhaları virajın dış yanında, bariyerin hemen arkasında iki ayak üstünde (havada durmaz)
       for (let s = a + 6; inRange(s, a, b); s += 12) {
         frameAt(s, F1);
         const g = new THREE.Group(); g.position.copy(F1.p).addScaledVector(F1.r, side * (HW + 5)); g.rotation.y = Math.atan2(F1.t.x, F1.t.z) + Math.PI; D.add(g);
-        const m = mk(g, kart, M.levha, 0, 3.95, 0, { cast: false }); if (sag) m.scale.x = -1;
+        // sola dönen virajda ok aynalanır (birleştirmede ayna dönüşümünün yüzü düzeltilir: karanlık görünmez)
+        const m = mk(g, kart, M.levha, 0, 3.95, 0, { cast: false }); if (solaDon) m.scale.x = -1;
         mk(g, box(4.4, 3.4, .12), M.direk, 0, 3.95, -.1, { cast: false });                 // levhanın arka çerçevesi
         for (const sx of [-1, 1]) mk(g, box(.24, 2.4, .24), M.direk, sx * 1.5, 1.2, -.18);   // ayaklar
       }
@@ -834,22 +849,23 @@ export function tema(A) {
         mk(g, box(.26, 2.5, .26), M.direk, 0, 1.25, -.2);                                    // direk yerden çıkar
       }
     }
-    // üç lastikten oluşan yığın tek parça: her yığın tek örnek (~100 üçgen)
+    // üç lastikten oluşan yığın tek parça: her yığın tek örnek (~170 üçgen); viraj viraj bölgelere ayrılır
+    // (ekranın ve gölge kutusunun dışındaki virajların lastikleri çizilmez)
     const yigin = A.mergeGeometries([0, 1, 2].map(y => new THREE.CylinderGeometry(.86, .86, .58, 14, 1, false).translate(y % 2 ? .06 : -.04, .3 + y * .62, y === 1 ? .05 : 0)));   // üstü kapalı
     const im = new THREE.InstancedMesh(yigin, M.lastik, lastik.length);
     lastik.forEach(([x, z, r], i) => { dummy.position.set(x, 0, z); dummy.rotation.set(0, r, 0); dummy.scale.setScalar(1); dummy.updateMatrix(); im.setMatrixAt(i, dummy.matrix); });
-    im.castShadow = true; D.add(im);
+    im.castShadow = true; D.add(A.bolgele(im, 200));
   }
 
   /* =========================================================
      BÖLGELER ve OLAYLAR
      ========================================================= */
   const bolgeler = [
-    { name: 'ÇAYIRÇİMEN SOKAĞI', sub: 'Simitçinin tablası devrilebilir', test: p => { const [x, y] = pxOf(p); return y > 645 && x > 900; } },
-    { name: 'ÇAMLIK CADDESİ', sub: 'Plazalar arası sert rüzgâr', test: p => pxOf(p)[0] > 900 },
-    { name: 'TALATPAŞA CADDESİ', sub: 'Eski su borusu patlayabilir', test: p => { const [x, y] = pxOf(p); return y > 500 && x > 600; } },
-    { name: 'AHMET KEMAL ARU SOKAĞI', sub: 'Cam silme iskelesinden kova düşebilir', test: p => { const [x, y] = pxOf(p); return y < 400 && x > 515; } },
-    { name: 'BÜYÜKDERE YAN YOLU', sub: 'Yapı Kredi Plaza blokları', test: () => true },
+    { name: 'ÇAYIRÇİMEN SOKAĞI', test: p => { const [x, y] = pxOf(p); return y > 645 && x > 900; } },   // simitçinin tablası
+    { name: 'ÇAMLIK CADDESİ', test: p => pxOf(p)[0] > 900 },                                              // plazalar arası rüzgâr
+    { name: 'TALATPAŞA CADDESİ', test: p => { const [x, y] = pxOf(p); return y > 500 && x > 600; } },      // su borusu
+    { name: 'AHMET KEMAL ARU SOKAĞI', test: p => { const [x, y] = pxOf(p); return y < 400 && x > 515; } }, // iskeleden kova
+    { name: 'BÜYÜKDERE YAN YOLU', test: () => true },
   ];
   const bolgeAdi = p => bolgeler.find(b => b.test(p)).name;
   const SIMIT_R = 1.25, SIMIT_T = .5, KOVA_R = 1.15;   // hepsi tek şeride sığar
@@ -862,7 +878,7 @@ export function tema(A) {
     const me = A.me, ilk = me.s + Math.max(once, sd(a, me.s)), son = me.s + sd(b, me.s);
     return son - ilk > 4 ? rand(ilk, son) : null;
   }
-  const yakinSerit = x => A.LANES.reduce((a, b) => Math.abs(b - x) < Math.abs(a - x) ? b : a);
+  const yakinSerit = A.yakinSerit;
   function olay(dt, raceT) {
     const me = A.me, p = me.car.root.position, aktif = A.olayAcik(raceT), reg = bolgeAdi(p);
     if (aktif && A.bolgeSirasi()) {

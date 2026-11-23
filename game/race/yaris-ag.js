@@ -22,15 +22,16 @@
 //   lobi/<lobi>/canli/<anahtar> = { s, x, y, v, vx, b, sl, f, t }   (oyuncu kendi aracını; botları yönetici yazar)
 //   lobi/<lobi>/engel/<id>      = { tip, s, x, v }                  (yönetici üretir; v = 1: kutular dağıldı)
 //   aktif/<uid>                 = oturum                           (aynı hesabın en son açılan sekmesi)
-export const MAX_OYUNCU = 5;
+const MAX_OYUNCU = 5;
 // İleride yeni temalar ve araçlar bu listelere eklenir.
-export const TEMALAR = [
+const TEMALAR = [
   { id: 'kraliyet', ad: 'Kraliyet Turu', alt: 'Kıyı yolu · Korsan koyu · Kale · Dino kanyonu · Değirmen vadisi' },
   { id: 'mutfak', ad: 'Dev Mutfak', alt: 'Dolap dibi · Ocak başı · Buzdolabı · Karton boru · Masa altı · Kedi köşesi' },
   { id: 'levent', ad: 'Levent Plazalar · ZORLU', alt: 'Büyükdere yan yolu · Ahmet Kemal Aru Sk. · Çamlık Cd. · Çayırçimen Sk. · Talatpaşa Cd.' },
+  { id: 'ortadunya', ad: 'Orta Dünya · ZORLU', alt: 'Shire · Fangorn Ormanı · Rivendell · Anduin Köprüsü · Helm Geçidi · uzakta Mordor' },
 ];
 // Araçlar yalnızca görünüşte farklıdır; hepsinin hızı ve yol tutuşu aynıdır.
-export const ARACLAR = [
+const ARACLAR = [
   { tip: 'sports', ad: 'Şimşek' }, { tip: 'muscle', ad: 'Kaslı' }, { tip: 'mini', ad: 'Minik' },
   { tip: 'van', ad: 'Karavan' }, { tip: 'buggy', ad: 'Buggy' },
   { tip: 'santa', ad: 'Noel Baba' }, { tip: 'space', ad: 'Uzay Gemisi' }, { tip: 'fire', ad: 'İtfaiye' },
@@ -78,7 +79,7 @@ async function firebaseBaglan() {
     // applyLocally: false → aşama ancak sunucu onaylayınca görünür (iki yönetici aynı anda yazarsa kaybedenin kadrosuyla yarış başlamaz)
     islem: (p, fn) => D.runTransaction(r(p), fn, { applyLocally: false }).then((s) => s.committed),
     on: (p, cb, hata) => D.onValue(r(p), (s) => cb(s.val()), hata),   // dinlemeyi bırakan işlevi döndürür
-    // alt kayıtlar tek tek: her değişiklikte bütün listeyi yeniden indirmez (canlı konumlar için)
+    // alt kayıtlar tek tek: bir aracın konumu değişince yalnızca o kayıt işlenir (bütün liste yeniden kurulmaz)
     onAlt: (p, degis, sil, hata) => {
       const b = [D.onChildAdded(r(p), (s) => degis(s.key, s.val()), hata), D.onChildChanged(r(p), (s) => degis(s.key, s.val()), hata),
         D.onChildRemoved(r(p), (s) => sil(s.key), hata)];
@@ -94,7 +95,10 @@ export async function agBaslat({ kok, oyun, yerel }) {
   const menuyeDon = () => { if (window.parent !== window) window.parent.postMessage({ tip: 'yaris-cik' }, location.origin); else location.href = '../index.html'; };
   // bağlanırken de menüye dönülebilsin (bağlantı uzun sürerse oyuncu takılı kalmasın)
   kok.innerHTML = '<div class="lb"><div class="ust"><button class="lbtn2" id="ilkCik">← Menüye dön</button></div><h2 class="it">Lobilere bağlanılıyor…</h2></div>';
-  kok.querySelector('#ilkCik').onclick = menuyeDon;
+  {   // dokunmatikte parmak kalkınca da çalışır (iPhone'da çerçeve içinde "click" bazen hiç gelmiyor); tek kez
+    const b = kok.querySelector('#ilkCik'); let gitti = false; const git = () => { if (!gitti) { gitti = true; menuyeDon(); } };
+    b.onclick = git; b.addEventListener('pointerup', (e) => { if (e.pointerType !== 'mouse') git(); });
+  }
   let db;
   try {
     db = yerel ? (await import('/yerel-db.js')).yerelDb(yerel) : await firebaseBaglan();
@@ -240,7 +244,7 @@ export async function agBaslat({ kok, oyun, yerel }) {
       else if (d.faz === 'sonuc') { if (tur === d.tur) oyun.sonucGeldi(liste(d.sonuc)); else kapat('Bu lobinin yarışı bitmiş.'); }
     }, hataGoster));
     abone.push(db.onAlt(K + 'canli', (k, st) => { if (!bitti) oyun.uzakDurum(k, st); }, () => {}, hataGoster));
-    abone.push(db.onAlt(K + 'engel', (eid, e) => { if (!bitti) oyun.engel(eid, e); }, () => {}, hataGoster));
+    abone.push(db.onAlt(K + 'engel', (eid, e) => { if (!bitti) oyun.engel(eid, e); }, (eid) => { if (!bitti) oyun.engelSilindi(eid); }, hataGoster));
     ciz();
   }
   // lobideyken başka bir lobiye geçmek ya da yarış izlemek: önce bu lobiden çıkılır
@@ -249,8 +253,6 @@ export async function agBaslat({ kok, oyun, yerel }) {
   // ---------- aynı hesap iki yerde: en son açılan geçerli ----------
   db.set(Y + 'aktif/' + ben, oturum).catch(() => {});
   db.on(Y + 'aktif/' + ben, (v) => { aktifSon = v || null; if (v && v !== oturum) baskaYerdeAcildi(); }, () => {});
-  // eski tek lobili sürümden kalan kayıtlar (bir kez temizlenir; izin yoksa önemsiz)
-  for (const k of ['oyuncular', 'durum', 'canli', 'engel']) db.remove(Y + k).catch(() => {});
 
   // ---------- bağlantı ----------
   // Firebase açılışta önce "bağlı değil", sonra "bağlı" bildirir: ilk "bağlı"dan önceki durum kopma sayılmaz.
@@ -322,9 +324,11 @@ export async function agBaslat({ kok, oyun, yerel }) {
     const beklenenler = () => aktifler().filter(canliMi);
     const sonGorulme = {};   // yarışta her aracın son konum zamanı (bağlantı kopunca canli kaydı silinse de kalır)
     const gecerliTema = (t) => TEMALAR.some((x) => x.id === t), gecerliArac = (t) => ARACLAR.some((x) => x.tip === t);
-    const kayip = {};   // yarışta kaydı kaybolan oyuncunun ilk kaybolma anı (kısa kopmalar affedilir)
-    function kopuncaSil(yol) { if (!kopunca.has(yol)) { kopunca.add(yol); db.kopunca(yol); } }
-    function kopuncaBirak() { for (const y of kopunca) db.kopuncaIptal(y); kopunca.clear(); }
+    const kayip = {};   // yarışta kaydı kaybolan oyuncunun ilk kaybolma anı (kısa kopmalar affedilir; her yarışta sıfırlanır)
+    let kayipTur = null;
+    const sessizce = (p) => { p?.catch?.(() => {}); };   // arka plan yazıları: başarısızsa (bağlantı/kural) bir sonraki tur düzeltir
+    function kopuncaSil(yol) { if (!kopunca.has(yol)) { kopunca.add(yol); sessizce(db.kopunca(yol)); } }
+    function kopuncaBirak() { for (const y of kopunca) sessizce(db.kopuncaIptal(y)); kopunca.clear(); }
     // Aşama geçişi: durum hâlâ beklenen aşama/turdaysa yazılır; başka bir cihaz önce yazdıysa vazgeçilir.
     let gecisSuruyor = false;
     // Her yazımda sürüm (rev) bir artar ve yalnızca okunan sürüm hâlâ sunucudaysa yazılır: bağlantısı kopup dönen
@@ -362,19 +366,21 @@ export async function agBaslat({ kok, oyun, yerel }) {
       const g = gizli(), tur = durum?.tur, eski = {};
       if (tur) for (const k of ['hazir', 'oy', 'arac']) { const v = secimlerim[k]; if (v && (v === tur || String(v).startsWith(tur + ':'))) eski[k] = v; }
       try {
+        // önce "bağlantı kopunca sil" görevi kurulur, sonra kayıt yazılır: arada bağlantı koparsa kayıt lobide
+        // sahipsiz kalıp koltuğu sonsuza dek tutmasın (kaydı yalnızca sahibi silebilir)
+        await db.kopunca(K + 'oyuncular/' + ben); await db.kopunca(K + 'canli/' + ben);
         await db.set(K + 'oyuncular/' + ben, { ad: db.ad, oturum, katilma: db.damga(), nabiz: db.damga(), ...eski, ...(g ? { uzakta: db.damga() } : {}) });
         // giriş sürerken çıkıldıysa (ya da başka yerde açıldıysa) yazdığımız kayıt koltuğu sonsuza dek tutmasın
         if (bitti) { db.islem(K + 'oyuncular/' + ben, (cur) => (cur && cur.oturum === oturum ? null : undefined)).catch(() => {}); return; }
-        db.kopunca(K + 'oyuncular/' + ben); db.kopunca(K + 'canli/' + ben);
         katildim = true; ilkGiris = false; hataMetni = ''; yavas = false;
-        if (gizli() !== g) db.update(K + 'oyuncular/' + ben, { uzakta: gizli() ? db.damga() : null });   // giriş sırasında ekran açıldı/kapandı
+        if (gizli() !== g) sessizce(db.update(K + 'oyuncular/' + ben, { uzakta: gizli() ? db.damga() : null }));   // giriş sırasında ekran açıldı/kapandı
       } catch (e) { hataGoster(e); } finally { giriyor = false; }
     }
     // "buradayım" sinyali: yöneticinin hâlâ bağlı olduğu buradan anlaşılır
     zaman.push(setInterval(() => { if (katildim && bagli && !gizli()) db.update(K + 'oyuncular/' + ben, { nabiz: db.damga() }).catch(() => {}); }, SURE.nabiz));
     // ekranı kapatan / uygulamadan çıkan oyuncu "uzakta" sayılır: lobiyi bekletmez, yönetici olmaz
     function gorunurluk() {
-      if (katildim) db.update(K + 'oyuncular/' + ben, gizli() ? { uzakta: db.damga() } : { uzakta: null, nabiz: db.damga() });
+      if (katildim) sessizce(db.update(K + 'oyuncular/' + ben, gizli() ? { uzakta: db.damga() } : { uzakta: null, nabiz: db.damga() }));
     }
     document.addEventListener('visibilitychange', gorunurluk);
 
@@ -457,7 +463,7 @@ export async function agBaslat({ kok, oyun, yerel }) {
         if (!kat.length) return gec(d, { faz: 'lobi', tur: yeniTur() });
         const secim = (id) => { const t = turDegeri(oyuncular[id].arac, d.tur); return gecerliArac(t) ? t : null; };
         if (kat.every(secim) || now >= d.bitis) {
-          db.remove(K + 'engel'); db.remove(K + 'canli');
+          sessizce(db.remove(K + 'engel')); sessizce(db.remove(K + 'canli'));
           gec(d, { faz: 'yaris', tur: d.tur, tema: d.tema, kadro: kadroKur(kat, secim), baslangic: now + SURE.hazirlik });
         }
       } else if (d.faz === 'yaris') {
@@ -471,17 +477,17 @@ export async function agBaslat({ kok, oyun, yerel }) {
           const kadro = { ...d.kadro }; for (const [id] of dusen) kadro[id] = { ...kadro[id], dustu: true };
           return gec(d, { ...d, kadro });
         }
-        if (!insanlar.length) { db.remove(K + 'engel'); db.remove(K + 'canli'); return gec(d, { faz: 'lobi', tur: yeniTur() }); }
+        if (!insanlar.length) { sessizce(db.remove(K + 'engel')); sessizce(db.remove(K + 'canli')); return gec(d, { faz: 'lobi', tur: yeniTur() }); }
         const yarista = oyun.yarista();
         const hepsiBitti = yarista ? oyun.insanlarBitti() : insanlar.every(([id]) => canli[id]?.f != null);
         const biriBitti = yarista ? oyun.ilkBitisVar() : insanlar.some(([id]) => canli[id]?.f != null);
         if (hepsiBitti || (d.ilkBitis && now >= d.ilkBitis + SURE.bekle) || now >= d.baslangic + SURE.enUzun) {
           const sonuc = yarista ? oyun.sonucHesapla() : sonucCanli(d);
-          db.remove(K + 'engel');
+          sessizce(db.remove(K + 'engel'));
           gec(d, { faz: 'sonuc', tur: d.tur, tema: d.tema, kadro: d.kadro, sonuc, bitis: now + SURE.sonuc });
         } else if (!d.ilkBitis && biriBitti) gec(d, { ...d, ilkBitis: now });
       } else if (d.faz === 'sonuc') {
-        if (now >= d.bitis) { db.remove(K + 'engel'); db.remove(K + 'canli'); gec(d, { faz: 'lobi', tur: yeniTur() }); }
+        if (now >= d.bitis) { sessizce(db.remove(K + 'engel')); sessizce(db.remove(K + 'canli')); gec(d, { faz: 'lobi', tur: yeniTur() }); }
       }
     }
 
@@ -490,6 +496,8 @@ export async function agBaslat({ kok, oyun, yerel }) {
       const d = durum;
       if (!d) return;
       sonDurum = d;
+      // yeni yarış: önceki yarıştan kalan "kayboldu" kayıtları sıfırlanır (yoksa yönetici değişince oyuncu beklenmeden düşerdi)
+      if (d.faz === 'yaris' && d.tur !== kayipTur) { kayipTur = d.tur; for (const k in kayip) delete kayip[k]; }
       const benim = d.kadro && d.kadro[ben];
       // yarışa yalnızca başlarken girilir; çoktan başlamış bir yarışa (ör. sayfayı sonradan açınca) izleyici olunur
       if (d.faz === 'yaris' && benim && !benim.dustu && yaris !== d.tur && db.now() - d.baslangic < SURE.gec) {
@@ -511,7 +519,7 @@ export async function agBaslat({ kok, oyun, yerel }) {
       // yeni turda önceki turdan kalan seçimlerimi sil
       const o = oyuncular[ben];
       if (d.faz === 'lobi' && o && ['hazir', 'oy', 'arac'].some((k) => o[k] && o[k] !== d.tur && !String(o[k]).startsWith(d.tur + ':'))) {
-        db.update(K + 'oyuncular/' + ben, { hazir: null, oy: null, arac: null });
+        sessizce(db.update(K + 'oyuncular/' + ben, { hazir: null, oy: null, arac: null }));
       }
     }
 
@@ -528,12 +536,14 @@ export async function agBaslat({ kok, oyun, yerel }) {
       }
       return `<div class="koltuklar">${h.join('')}</div>`;
     }
-    const sayac = (bitis) => `<div class="sure" data-bitis="${bitis}"></div>`;
+    // bitiş veritabanından gelir: yalnızca sayı olarak yazılır (sayfaya HTML sızdırılamasın)
+    const sayac = (bitis) => `<div class="sure" data-bitis="${+bitis || 0}"></div>`;
     function lobiCiz() {
       const d = durum, n = Object.keys(oyuncular).length;
       const ust = `<div class="ust"><button class="lbtn2" data-act="cik">← Lobilerden çık</button><span class="lbtn2" style="cursor:default">${n}/${MAX_OYUNCU} oyuncu</span></div>`;
       let h;
-      if (!katildim || !d) h = '<h2 class="it">Lobiye giriliyor…</h2>' + yavasNot();
+      if (cikiyor) h = '<h2 class="it">Lobiden çıkılıyor…</h2>';
+      else if (!katildim || !d) h = '<h2 class="it">Lobiye giriliyor…</h2>' + yavasNot();
       else {
         const benimki = oyuncular[ben] || {}, katilimci = !!(d.katilimci && d.katilimci[ben]);
         if (d.faz === 'lobi') {
@@ -552,7 +562,7 @@ export async function agBaslat({ kok, oyun, yerel }) {
               <img src="${oyun.temaResim(t.id)}" alt=""><b>${esc(t.ad)}</b><small class="kim">${esc(t.alt)}</small>
               <span class="oy">${verenler.length} oy</span><span class="kim">${esc(verenler.join(', '))}</span></button>`;
           }).join('');
-          h = `<h2 class="it">TEMA OYLAMASI</h2>${sayac(d.bitis)}<div class="secim">${kart}</div>
+          h = `<h2 class="it">TEMA OYLAMASI</h2>${sayac(d.bitis)}<div class="secim temalar">${kart}</div>
             <div class="alt">${katilimci ? 'Bir temaya dokunarak oy ver. <b>En çok oy alan</b> tema seçilir; eşitlikte oy alanlardan biri rastgele seçilir.' : 'Bu tur başladı; sıradaki yarışa katılacaksın.'}</div>`;
         } else if (d.faz === 'arac') {
           const secimim = turDegeri(benimki.arac, d.tur), tema = TEMALAR.find((t) => t.id === d.tema);
@@ -580,9 +590,10 @@ export async function agBaslat({ kok, oyun, yerel }) {
       if (act === 'cik') return cik();
       const d = durum, benimki = oyuncular[ben];
       if (!d || !benimki) return;
-      if (act === 'hazir' && d.faz === 'lobi') db.update(K + 'oyuncular/' + ben, { hazir: benimki.hazir === d.tur ? null : d.tur });
-      if (act === 'oy' && d.faz === 'tema') db.update(K + 'oyuncular/' + ben, { oy: d.tur + ':' + b.dataset.v });
-      if (act === 'arac' && d.faz === 'arac') db.update(K + 'oyuncular/' + ben, { arac: d.tur + ':' + b.dataset.v });
+      // dokunuş kaybolursa (ör. kaydımız o an sunucuda silinmişse) sebebi gösterilir
+      if (act === 'hazir' && d.faz === 'lobi') db.update(K + 'oyuncular/' + ben, { hazir: benimki.hazir === d.tur ? null : d.tur }).catch(hataGoster);
+      if (act === 'oy' && d.faz === 'tema') db.update(K + 'oyuncular/' + ben, { oy: d.tur + ':' + b.dataset.v }).catch(hataGoster);
+      if (act === 'arac' && d.faz === 'arac') db.update(K + 'oyuncular/' + ben, { arac: d.tur + ':' + b.dataset.v }).catch(hataGoster);
     }
     // lobiden çık → liste. Yalnızca bu oturumun kendi kaydına dokunulur; son kişiysek lobinin bütün kayıtları silinir.
     async function cik() {
@@ -627,7 +638,7 @@ export async function agBaslat({ kok, oyun, yerel }) {
     }, hataGoster));
     abone.push(db.on(K + 'durum', (v) => { if (bitti) return; durum = v; durumGeldi = true; durumDegisti(); katilmayiDene().then(guncelle); guncelle(); }, hataGoster));
     abone.push(db.onAlt(K + 'canli', (k, st) => { canli[k] = st; if (+st?.t) sonGorulme[k] = Math.max(sonGorulme[k] || 0, +st.t); if (k !== ben && !bitti) oyun.uzakDurum(k, st); }, (k) => { delete canli[k]; }, hataGoster));
-    abone.push(db.onAlt(K + 'engel', (id, e) => { if (!bitti) oyun.engel(id, e); }, () => {}, hataGoster));
+    abone.push(db.onAlt(K + 'engel', (id, e) => { if (!bitti) oyun.engel(id, e); }, (id) => { if (!bitti) oyun.engelSilindi(id); }, hataGoster));
     zaman.push(setInterval(() => { if (!bitti) { hostKontrol(); hostIsle(); sayacGuncelle(); } }, 300));
 
     let engelNo = 0;
@@ -641,12 +652,13 @@ export async function agBaslat({ kok, oyun, yerel }) {
       gonder(anahtar, st) {
         if (cikiyor || bitti || baskaYerde || !bagli) return;   // bağlantı yokken konumlar birikip sonra topluca gitmesin
         if (anahtar !== ben && benHost) kopuncaSil(K + 'canli/' + anahtar);
-        db.set(K + 'canli/' + anahtar, { ...st, t: db.now() });
+        sessizce(db.set(K + 'canli/' + anahtar, { ...st, t: db.now() }));
       },
       engelId: () => 'e' + (++engelNo) + Math.random().toString(36).slice(2, 5),
-      // ek: { b: oyuncunun bıraktığı (olay sırasını etkilemez), g: gecikmeli düşen tuzak }
-      engelEkle(id, tip, s, x, ek = {}) { db.set(K + 'engel/' + id, { tip, s: +s.toFixed(1), x, v: 0, ...ek }); },
-      engelVur(id) { db.update(K + 'engel/' + id, { v: 1 }).catch(() => {}); },   // engel çoktan silinmişse kurallar reddeder: sorun değil
+      // ek: { b: oyuncunun bıraktığı (olay sırasını etkilemez), g: gecikmeli düşen tuzak }.
+      // Lobiden çıkarken yazılmaz: son kişi lobiyi silerken bırakılan bir eşya silinen lobiyi yeniden yaratmasın.
+      engelEkle(id, tip, s, x, ek = {}) { if (!cikiyor && !bitti) sessizce(db.set(K + 'engel/' + id, { tip, s: +s.toFixed(1), x, v: 0, ...ek })); },
+      engelVur(id) { if (!cikiyor && !bitti) sessizce(db.update(K + 'engel/' + id, { v: 1 })); },   // engel çoktan silinmişse kurallar reddeder: sorun değil
     };
   }
 
